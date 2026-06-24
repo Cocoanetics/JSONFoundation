@@ -106,7 +106,10 @@ public enum MCPJSONCoding {
         self = try MCPJSONCoding.makeDecoder().decode(JSONValue.self, from: data)
     }
 
-    package init(jsonObject value: Any?) throws {
+    /// Builds a `JSONValue` from a Foundation JSON object graph — the `Any?`
+    /// produced by `JSONSerialization` (`NSNull`, `NSNumber`, `String`,
+    /// `Array`, `Dictionary`). `nil`/`NSNull` map to `.null`.
+    public init(jsonObject value: Any?) throws {
         guard let value else {
             self = .null
             return
@@ -244,7 +247,10 @@ public enum MCPJSONCoding {
         return try decoder.decode(T.self, from: data)
     }
 
-    package func decodeDynamically(
+    /// Decodes this value into a dynamically-supplied `Decodable` type — the
+    /// type-erased counterpart to `decoded(_:using:)`, for when the concrete
+    /// type is only known at runtime (e.g. `any Decodable.Type`).
+    public func decodeDynamically(
         _ type: any Decodable.Type,
         using decoder: JSONDecoder = MCPJSONCoding.makeDecoder()
     ) throws -> any Decodable {
