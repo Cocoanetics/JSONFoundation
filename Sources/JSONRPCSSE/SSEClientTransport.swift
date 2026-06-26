@@ -1,7 +1,9 @@
+// `URLSession.bytes(for:)` — the incremental streaming read this transport relies
+// on — is a Darwin Foundation API; FoundationNetworking (Linux / Windows / Android)
+// does not provide it, so the module is empty there. A delegate-based streaming
+// path could restore those platforms later.
+#if canImport(Darwin)
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
 import JSONFoundation
 import JSONRPCPeer
 import JSONRPCWire
@@ -119,3 +121,5 @@ public final class SSEClientTransport: JSONRPCMessageTransport, @unchecked Senda
         }
     }
 }
+
+#endif

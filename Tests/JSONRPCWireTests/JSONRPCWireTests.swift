@@ -88,3 +88,10 @@ private func text(_ data: Data) -> String? { String(data: data, encoding: .utf8)
     #expect(out.count == 1)
     #expect(text(out[0]) == "{\"id\":5}")
 }
+
+@Test func contentLengthRejectsNegativeLength() {
+    // A malformed `Content-Length: -1` must be dropped, not used as a frame size.
+    var framing = ContentLengthFraming()
+    let out = framing.push(Data("Content-Length: -1\r\n\r\n{}".utf8))
+    #expect(out.isEmpty)
+}

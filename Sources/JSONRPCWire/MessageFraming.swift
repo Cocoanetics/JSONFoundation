@@ -69,7 +69,11 @@ public struct ContentLengthFraming: MessageFraming {
                   parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
                       .caseInsensitiveCompare("Content-Length") == .orderedSame
             else { continue }
-            return Int(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
+            // Reject a non-numeric or negative length — a bad header must never
+            // become a frame size (`buffer.prefix(negative)` would trap).
+            guard let length = Int(parts[1].trimmingCharacters(in: .whitespacesAndNewlines)),
+                  length >= 0 else { return nil }
+            return length
         }
         return nil
     }

@@ -163,3 +163,16 @@ private final class CapturingSink: JSONRPCMessageSink, @unchecked Sendable {
         _ = try await result
     }
 }
+
+@Test func sendRequestAfterStreamEndRejects() async throws {
+    // After the inbound stream ends, a *new* request must reject rather than park a
+    // continuation no reader will ever resolve.
+    let transport = LoopbackTransport()
+    let peer = JSONRPCPeer(transport: transport)
+    await peer.start()
+    transport.finishInbound()
+    await peer.waitUntilClosed()
+    await #expect(throws: JSONRPCPeerError.self) {
+        _ = try await peer.sendRequest(method: "afterClose", params: nil)
+    }
+}

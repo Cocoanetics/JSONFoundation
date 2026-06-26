@@ -195,6 +195,12 @@ public actor JSONRPCPeer {
     }
 
     private func handleStreamEnd() {
+        guard !isClosed else { return }
+        // The read loop ended (EOF / peer gone): mark the peer closed and tear down
+        // the owned transport, so a later `sendRequest` rejects with `.closed`
+        // instead of parking a continuation no reader will ever resolve.
+        isClosed = true
+        ownedTransport?.close()
         failAllPending(with: JSONRPCPeerError.closed)
     }
 
