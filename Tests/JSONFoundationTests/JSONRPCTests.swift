@@ -52,6 +52,27 @@ struct JSONRPCMessageTests {
         }
     }
 
+    @Test func handlesNonObjectParamsAndResults() throws {
+        // A null result (e.g. a fs/write_text_file ack) round-trips — the object-only
+        // model used to drop these.
+        let nullResult = JSONRPCMessage.response(id: 1, result: .null)
+        let decodedNull = try JSONRPCMessage.decodeMessages(from: nullResult.encoded())
+        #expect(decodedNull.first?.isResponse == true)
+        #expect(decodedNull.first?.result == JSONValue.null)
+
+        // A primitive result decodes as such.
+        let boolResult = try JSONRPCMessage.decodeMessages(
+            from: data(#"{"jsonrpc":"2.0","id":1,"result":true}"#)
+        )
+        #expect(boolResult.first?.result?.boolValue == true)
+
+        // Positional (array) params round-trip.
+        let arrayParams = JSONRPCMessage.request(id: 1, method: "sum", params: .array([.integer(1), .integer(2)]))
+        let decodedArray = try JSONRPCMessage.decodeMessages(from: arrayParams.encoded())
+        #expect(decodedArray.first?.params?[0]?.intValue == 1)
+        #expect(decodedArray.first?.params == JSONValue.array([.integer(1), .integer(2)]))
+    }
+
     @Test func equatableAndHashable() {
         let first = JSONRPCMessage.request(id: 1, method: "ping")
         let same = JSONRPCMessage.request(id: 1, method: "ping")
