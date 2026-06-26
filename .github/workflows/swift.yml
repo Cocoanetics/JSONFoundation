@@ -73,5 +73,7 @@ jobs:
         timeout-minutes: 25
         uses: skiptools/swift-android-action@v2
         with:
-          swift-version: "6.3.2"
+          # Match the Windows job's toolchain; the Android action had no SDK snapshot
+          # for 6.3.2 ("Could not find any swift version matching: 6.3.2").
+          swift-version: "6.3.1"
           free-disk-space: true
