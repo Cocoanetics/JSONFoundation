@@ -142,12 +142,6 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
         }
     }
 
-    /// Forcefully kill the child (used after a graceful shutdown stalls).
-    public func kill() {
-        guard process.isRunning else { return }
-        Foundation.kill(process.processIdentifier, SIGKILL)
-    }
-
     private static func resolveExecutable(_ command: String) -> URL {
         if command.contains("/") {
             return URL(fileURLWithPath: command)
