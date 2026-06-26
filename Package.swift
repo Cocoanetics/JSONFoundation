@@ -9,13 +9,13 @@ import PackageDescription
 //   JSONRPCPeer        correlation + dispatch over an abstract transport  (pure)
 //   JSONRPCWire        framing codecs (Content-Length / line) · SSE decode (pure)
 //   JSONRPCStdio       Foundation.Process stdio transport                 (zero-dep)
-//   JSONRPCSSE         HTTP+SSE client transport (URLSession)             (zero-dep)
+//   JSONRPCSSE         HTTP+SSE client transport (URLSession + SwiftCross) (light dep)
 //   JSONRPCSubprocess  swift-subprocess stdio transport                   (trait `Subprocess`)
 //
-// Everything except `JSONRPCSubprocess` is dependency-free, so the default
-// resolution graph stays empty. The one external dependency (swift-subprocess) is
-// quarantined behind the `Subprocess` trait, off by default. swift-subprocess
-// requires macOS 13, which sets this package's macOS floor.
+// The model, peer, codecs, and Foundation.Process transport are dependency-free.
+// `JSONRPCSSE` pulls SwiftCross (a zero-further-dependency cross-platform shim that
+// backfills `URLSession.bytes(for:)` off-Apple). swift-subprocess is quarantined
+// behind the off-by-default `Subprocess` trait, and sets the macOS 13 floor.
 let package = Package(
     name: "JSONFoundation",
     platforms: [
@@ -32,17 +32,18 @@ let package = Package(
         .library(name: "JSONRPCStdio", targets: ["JSONRPCStdio"]),
         .library(name: "JSONRPCSSE", targets: ["JSONRPCSSE"]),
         .library(name: "JSONRPCSubprocess", targets: ["JSONRPCSubprocess"]),
-        // Batteries-included, dependency-free bundle: peer + codecs + the two
-        // zero-dep transports. Add `JSONRPCSubprocess` + the trait for swift-subprocess.
+        // Batteries-included bundle: peer + codecs + the stdio & SSE transports.
+        // Add `JSONRPCSubprocess` + the trait for the swift-subprocess transport.
         .library(name: "JSONRPC", targets: ["JSONRPCPeer", "JSONRPCWire", "JSONRPCStdio", "JSONRPCSSE"])
     ],
     traits: [
-        .default(enabledTraits: []),   // base graph: zero external dependencies
+        .default(enabledTraits: []),   // base graph: only SwiftCross (via JSONRPCSSE)
         .trait(name: "Subprocess")     // opt-in: the swift-subprocess transport
     ],
     dependencies: [
-        // Only resolved when the `Subprocess` trait is enabled (the product below is
-        // gated), so the default graph stays dependency-free.
+        // Cross-platform `URLSession.bytes(for:)` for JSONRPCSSE (no further deps).
+        .package(url: "https://github.com/Cocoanetics/SwiftCross.git", from: "1.2.0"),
+        // Only resolved when the `Subprocess` trait is enabled (the product is gated).
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.5.0")
     ],
     targets: [
@@ -59,8 +60,11 @@ let package = Package(
             dependencies: ["JSONFoundation", "JSONRPCPeer", "JSONRPCWire"]
         ),
         .target(
-            name: "JSONRPCSSE",                         // URLSession — zero external deps
-            dependencies: ["JSONFoundation", "JSONRPCPeer", "JSONRPCWire"]
+            name: "JSONRPCSSE",                         // URLSession + SwiftCross (cross-platform bytes)
+            dependencies: [
+                "JSONFoundation", "JSONRPCPeer", "JSONRPCWire",
+                .product(name: "SwiftCross", package: "SwiftCross")
+            ]
         ),
         .target(
             name: "JSONRPCSubprocess",                  // swift-subprocess — trait-gated

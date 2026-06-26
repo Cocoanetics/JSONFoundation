@@ -1,12 +1,15 @@
-// `URLSession.bytes(for:)` — the incremental streaming read this transport relies
-// on — is a Darwin Foundation API; FoundationNetworking (Linux / Windows / Android)
-// does not provide it, so the module is empty there. A delegate-based streaming
-// path could restore those platforms later.
-#if canImport(Darwin)
 import Foundation
+#if canImport(FoundationNetworking)
+// On non-Apple platforms URLSession / URLRequest live in FoundationNetworking.
+import FoundationNetworking
+#endif
 import JSONFoundation
 import JSONRPCPeer
 import JSONRPCWire
+// SwiftCross backfills `URLSession.bytes(for:)` — a Darwin-only API — on the
+// FoundationNetworking platforms (Linux / Windows / Android) via a delegate-based
+// streaming shim, so this transport compiles and streams everywhere.
+import SwiftCross
 
 /// An HTTP+SSE **client** ``JSONRPCMessageTransport`` (MCP's "Streamable HTTP"
 /// shape), built on `URLSession`.
@@ -121,5 +124,3 @@ public final class SSEClientTransport: JSONRPCMessageTransport, @unchecked Senda
         }
     }
 }
-
-#endif
