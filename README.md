@@ -70,8 +70,10 @@ let schema: JSONSchema = .object(.init(
 ## JSON-RPC 2.0
 
 Foundation-only envelope types for JSON-RPC 2.0 — the wire model only, no
-transport (bring your own). Ids accept integer/string literals, messages are
-`Equatable`/`Hashable`, and encoding is the symmetric inverse of decoding:
+transport (bring your own). `params` and `result` are any `JSONValue` (object,
+array, primitive, or `null` — the full spec shape). Ids accept integer/string
+literals, messages are `Equatable`/`Hashable`, and encoding is the symmetric
+inverse of decoding:
 
 ```swift
 let request: JSONRPCMessage = .request(id: 1, method: "ping", params: ["x": .integer(1)])

@@ -57,7 +57,7 @@ public extension JSONRPCMessage {
     }
 
     /// The call parameters — for a `request` or `notification`; `nil` otherwise.
-    var params: JSONDictionary? {
+    var params: JSONValue? {
         switch self {
         case .request(let data): return data.params
         case .notification(let data): return data.params
@@ -66,7 +66,7 @@ public extension JSONRPCMessage {
     }
 
     /// The success result — for a `response`; `nil` otherwise.
-    var result: JSONDictionary? {
+    var result: JSONValue? {
         switch self {
         case .response(let data): return data.result
         case .request, .notification, .errorResponse: return nil
@@ -89,7 +89,7 @@ public extension JSONRPCMessage {
     ///
     /// This is the shape a request/response correlator wants — resume a pending
     /// continuation with `.success`'s value, or throw `.failure`'s error.
-    var replyOutcome: Result<JSONDictionary?, JSONRPCError>? {
+    var replyOutcome: Result<JSONValue?, JSONRPCError>? {
         switch self {
         case .response(let data): return .success(data.result)
         case .errorResponse(let data): return .failure(data.error)

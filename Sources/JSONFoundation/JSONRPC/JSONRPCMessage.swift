@@ -29,11 +29,13 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         /// The name of the method to be invoked
         public var method: String
 
-        /// The parameters to be passed to the method, as a dictionary of parameter names to values
-        public var params: JSONDictionary?
+        /// The parameters passed to the method — any JSON value. Typically an
+        /// object (named params); the JSON-RPC 2.0 spec also permits an array
+        /// (positional params).
+        public var params: JSONValue?
 
         /// Public initializer
-        public init(jsonrpc: String = "2.0", id: JSONRPCID, method: String, params: JSONDictionary? = nil) {
+        public init(jsonrpc: String = "2.0", id: JSONRPCID, method: String, params: JSONValue? = nil) {
             self.jsonrpc = jsonrpc
             self.id = id
             self.method = method
@@ -49,11 +51,13 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         /// The name of the method to be invoked
         public var method: String
 
-        /// The parameters to be passed to the method, as a dictionary of parameter names to values
-        public var params: JSONDictionary?
+        /// The parameters passed to the method — any JSON value. Typically an
+        /// object (named params); the JSON-RPC 2.0 spec also permits an array
+        /// (positional params).
+        public var params: JSONValue?
 
         /// Public initializer
-        public init(jsonrpc: String = "2.0", method: String, params: JSONDictionary? = nil) {
+        public init(jsonrpc: String = "2.0", method: String, params: JSONValue? = nil) {
             self.jsonrpc = jsonrpc
             self.method = method
             self.params = params
@@ -68,11 +72,12 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         /// The unique identifier matching the request ID (non-optional for responses)
         public var id: JSONRPCID
 
-        /// The result of the method invocation, as a dictionary of result fields
-        public var result: JSONDictionary?
+        /// The result of the method invocation — any JSON value (object, array,
+        /// primitive, or null). Required on success per the JSON-RPC 2.0 spec.
+        public var result: JSONValue?
 
         /// Public initializer
-        public init(jsonrpc: String = "2.0", id: JSONRPCID, result: JSONDictionary? = nil) {
+        public init(jsonrpc: String = "2.0", id: JSONRPCID, result: JSONValue? = nil) {
             self.jsonrpc = jsonrpc
             self.id = id
             self.result = result
@@ -150,7 +155,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         jsonrpc: String = "2.0",
         id: JSONRPCID,
         method: String,
-        params: JSONDictionary? = nil
+        params: JSONValue? = nil
     ) -> JSONRPCMessage {
         return .request(JSONRPCRequestData(jsonrpc: jsonrpc, id: id, method: method, params: params))
     }
@@ -159,7 +164,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         jsonrpc: String = "2.0",
         id: Int,
         method: String,
-        params: JSONDictionary? = nil
+        params: JSONValue? = nil
     ) -> JSONRPCMessage {
         request(jsonrpc: jsonrpc, id: .integer(id), method: method, params: params)
     }
@@ -168,7 +173,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         jsonrpc: String = "2.0",
         id: String,
         method: String,
-        params: JSONDictionary? = nil
+        params: JSONValue? = nil
     ) -> JSONRPCMessage {
         request(jsonrpc: jsonrpc, id: .string(id), method: method, params: params)
     }
@@ -176,7 +181,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
     public static func response(
         jsonrpc: String = "2.0",
         id: JSONRPCID,
-        result: JSONDictionary? = nil
+        result: JSONValue? = nil
     ) -> JSONRPCMessage {
         return .response(JSONRPCResponseData(jsonrpc: jsonrpc, id: id, result: result))
     }
@@ -184,7 +189,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
     public static func response(
         jsonrpc: String = "2.0",
         id: Int,
-        result: JSONDictionary? = nil
+        result: JSONValue? = nil
     ) -> JSONRPCMessage {
         response(jsonrpc: jsonrpc, id: .integer(id), result: result)
     }
@@ -192,7 +197,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
     public static func response(
         jsonrpc: String = "2.0",
         id: String,
-        result: JSONDictionary? = nil
+        result: JSONValue? = nil
     ) -> JSONRPCMessage {
         response(jsonrpc: jsonrpc, id: .string(id), result: result)
     }
@@ -208,7 +213,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
     public static func notification(
         jsonrpc: String = "2.0",
         method: String,
-        params: JSONDictionary? = nil
+        params: JSONValue? = nil
     ) -> JSONRPCMessage {
         return .notification(JSONRPCNotificationData(jsonrpc: jsonrpc, method: method, params: params))
     }
@@ -234,7 +239,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         if container.contains(.method) {
             // This is a request or notification
             let method = try container.decode(String.self, forKey: .method)
-            let params = try container.decodeIfPresent(JSONDictionary.self, forKey: .params)
+            let params = try container.decodeIfPresent(JSONValue.self, forKey: .params)
 
             if let id = id {
                 // Request with ID (expecting response)
@@ -256,8 +261,9 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
                 ))
             }
 
-            // Handle both empty and non-empty result dictionaries as regular responses
-            let result = try container.decode(JSONDictionary.self, forKey: .result)
+            // `result` is required on success but may be any JSON value (object,
+            // array, primitive, or null).
+            let result = try container.decode(JSONValue.self, forKey: .result)
             self = .response(JSONRPCResponseData(jsonrpc: jsonrpc, id: id, result: result))
         } else {
             throw DecodingError.dataCorrupted(DecodingError.Context(
