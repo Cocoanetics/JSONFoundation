@@ -1,5 +1,6 @@
 // swift-tools-version: 6.1
 import PackageDescription
+import CompilerPluginSupport
 
 // JSONFoundation — the wire model for JSON, JSON Schema, and JSON-RPC, plus the
 // JSON-RPC *runtime* (a transport-agnostic peer and a set of stdio/SSE transports)
@@ -44,11 +45,22 @@ let package = Package(
         // Cross-platform `URLSession.bytes(for:)` for JSONRPCSSE (no further deps).
         .package(url: "https://github.com/Cocoanetics/SwiftCross.git", from: "1.2.0"),
         // Only resolved when the `Subprocess` trait is enabled (the product is gated).
-        .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.5.0")
+        .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.5.0"),
+        // Build-time only: powers the `@Schema` macro plugin (host toolchain).
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "602.0.0-latest"..<"604.0.0")
     ],
     targets: [
-        // MARK: Model (pure Foundation, zero dependencies)
-        .target(name: "JSONFoundation"),
+        // MARK: Macros (build-time compiler plugin — host only)
+        .macro(
+            name: "JSONFoundationMacros",
+            dependencies: [
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
+            ]
+        ),
+
+        // MARK: Model (pure Foundation; the `@Schema` macro is a build-time plugin)
+        .target(name: "JSONFoundation", dependencies: ["JSONFoundationMacros"]),
 
         // MARK: JSON-RPC runtime (pure — no I/O, no external deps)
         .target(name: "JSONRPCPeer", dependencies: ["JSONFoundation"]),
