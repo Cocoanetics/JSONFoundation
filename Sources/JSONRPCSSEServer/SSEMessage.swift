@@ -100,9 +100,10 @@ public struct SSEMessage: LosslessStringConvertible, Sendable, Hashable {
         let encoder = SSEEventEncoder()
         switch event {
         case .comment(let comment):
-            return String(decoding: encoder.comment(comment), as: UTF8.self)
+            return String(data: encoder.comment(comment), encoding: .utf8) ?? ""
         case .field(_, let value, let eventName):
-            return String(decoding: encoder.encode(data: value, event: eventName, id: id, retry: retry), as: UTF8.self)
+            let bytes = encoder.encode(data: value, event: eventName, id: id, retry: retry)
+            return String(data: bytes, encoding: .utf8) ?? ""
         }
     }
 }

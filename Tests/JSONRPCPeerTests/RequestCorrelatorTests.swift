@@ -50,15 +50,15 @@ private func waitUntil(_ caller: Caller, pending target: Int) async {
 
 @Test func failAllRejectsEveryWaiter() async {
     let caller = Caller()
-    async let r1: Int = caller.send("a")
-    async let r2: Int = caller.send("b")
+    async let reply1: Int = caller.send("a")
+    async let reply2: Int = caller.send("b")
     await waitUntil(caller, pending: 2)
 
     await caller.tearDown()
 
     var cancelled = 0
-    do { _ = try await r1 } catch is CancellationError { cancelled += 1 } catch {}
-    do { _ = try await r2 } catch is CancellationError { cancelled += 1 } catch {}
+    do { _ = try await reply1 } catch is CancellationError { cancelled += 1 } catch {}
+    do { _ = try await reply2 } catch is CancellationError { cancelled += 1 } catch {}
     #expect(cancelled == 2)
     #expect(await caller.pending == 0)
 }

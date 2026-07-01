@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import JSONRPCWire
 
-private func text(_ data: Data) -> String { String(decoding: data, as: UTF8.self) }
+private func text(_ data: Data) -> String { String(data: data, encoding: .utf8) ?? "" }
 
 @Test func encodesSimpleDataEvent() {
     #expect(text(SSEEventEncoder().encode(data: "hello")) == "data: hello\n\n")

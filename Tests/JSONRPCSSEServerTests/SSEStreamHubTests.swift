@@ -19,7 +19,7 @@ private func collect(_ stream: AsyncStream<Data>, count: Int) async -> [String] 
     var out: [String] = []
     guard count > 0 else { return out }
     for await chunk in stream {
-        out.append(String(decoding: chunk, as: UTF8.self))
+        out.append(String(data: chunk, encoding: .utf8) ?? "")
         if out.count == count { break }
     }
     return out
