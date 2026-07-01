@@ -66,13 +66,13 @@ public struct SSEMessage: LosslessStringConvertible, Sendable, Hashable {
 
         for line in lines {
             if line.starts(with: "id:") {
-                eventID = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                eventID = Self.fieldValue(line, colonPrefix: 3)
             } else if line.starts(with: "retry:") {
-                retry = Int(String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces))
+                retry = Int(Self.fieldValue(line, colonPrefix: 6))
             } else if line.starts(with: "event:") {
-                eventName = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+                eventName = Self.fieldValue(line, colonPrefix: 6)
             } else if line.starts(with: "data:") {
-                dataLines.append(String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces))
+                dataLines.append(Self.fieldValue(line, colonPrefix: 5))
             }
         }
 
@@ -83,6 +83,16 @@ public struct SSEMessage: LosslessStringConvertible, Sendable, Hashable {
         self.event = .field(name: "data", value: dataLines.joined(separator: "\n"), eventName: eventName)
         self.id = eventID
         self.retry = retry
+    }
+
+    /// The value of an SSE `field: value` line: everything after the colon with a
+    /// **single** optional leading space removed, per the SSE spec — not trimmed,
+    /// so a payload's intentional surrounding whitespace (e.g. `" x "`) survives the
+    /// `description` → `init?` round trip.
+    private static func fieldValue(_ line: Substring, colonPrefix: Int) -> String {
+        var value = String(line.dropFirst(colonPrefix))
+        if value.hasPrefix(" ") { value.removeFirst() }
+        return value
     }
 
     /// The message rendered in SSE wire format.
