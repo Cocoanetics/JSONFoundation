@@ -1,7 +1,7 @@
 import Foundation
 import JSONFoundation
-import Testing
 @testable import JSONRPCPeer
+import Testing
 
 /// An injectable in-memory ``JSONRPCMessageTransport`` spy for white-box peer
 /// tests: `onSend` observes outbound messages (and can auto-respond), `inject`
@@ -77,7 +77,7 @@ func surfacesErrorResponsesAsThrows() async throws {
 }
 
 @Test(.timeLimit(.minutes(1)))
-func deliversInboundNotificationsToHandler() async throws {
+func deliversInboundNotificationsToHandler() async {
     let transport = SpyTransport()
     let delivered = OnceBox<String>()
     let peer = JSONRPCPeer(transport: transport)
@@ -140,7 +140,7 @@ private final class OnceBox<Value: Sendable>: @unchecked Sendable {
 }
 
 @Test(.timeLimit(.minutes(1)))
-func dispatchesInboundRequestsAndRepliesWithHandlerResult() async throws {
+func dispatchesInboundRequestsAndRepliesWithHandlerResult() async {
     let transport = SpyTransport()
     let peer = JSONRPCPeer(transport: transport)
     await peer.setHandlers(
@@ -155,7 +155,7 @@ func dispatchesInboundRequestsAndRepliesWithHandlerResult() async throws {
 }
 
 @Test(.timeLimit(.minutes(1)))
-func acknowledgesInboundRequestsWithNullWhenNoHandler() async throws {
+func acknowledgesInboundRequestsWithNullWhenNoHandler() async {
     let transport = SpyTransport()
     let peer = JSONRPCPeer(transport: transport)
     await peer.setHandlers(request: nil, notification: nil)

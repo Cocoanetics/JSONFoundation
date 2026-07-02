@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import JSONRPCPeer
+import Testing
 
 /// A minimal caller that holds the (non-thread-safe) correlator inside its own
 /// isolation — exactly how a real consumer (SwiftMCP's `Session` actor) uses it.
@@ -45,8 +45,8 @@ func aSecondResolveDoesNotResumeTwice() async throws {
     let caller = Caller()
     async let reply = caller.send("a")
     await waitUntil(caller, pending: 1)
-    #expect(await caller.deliver("a", 1) == true)   // first wins
-    #expect(await caller.deliver("a", 2) == false)  // second: no waiter, no double-resume
+    #expect(await caller.deliver("a", 1) == true) // first wins
+    #expect(await caller.deliver("a", 2) == false) // second: no waiter, no double-resume
     #expect(try await reply == 1)
 }
 

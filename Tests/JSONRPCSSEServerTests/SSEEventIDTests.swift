@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import JSONRPCSSEServer
+import Testing
 
 @Test func eventIDRoundTrips() {
     let uuid = UUID()
@@ -18,7 +18,7 @@ import Testing
 
 @Test func eventIDRejectsMalformed() {
     #expect(SSEEventID("not-a-uuid:1") == nil)
-    #expect(SSEEventID("\(UUID().uuidString):0") == nil)      // sequence must be >= 1
+    #expect(SSEEventID("\(UUID().uuidString):0") == nil) // sequence must be >= 1
     #expect(SSEEventID("\(UUID().uuidString):abc") == nil)
-    #expect(SSEEventID(UUID().uuidString) == nil)             // no colon at all
+    #expect(SSEEventID(UUID().uuidString) == nil) // no colon at all
 }

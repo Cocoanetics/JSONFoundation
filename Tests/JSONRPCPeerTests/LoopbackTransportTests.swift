@@ -1,7 +1,7 @@
 import Foundation
-import Testing
 import JSONFoundation
 @testable import JSONRPCPeer
+import Testing
 
 @Suite("LoopbackTransport")
 struct LoopbackTransportTests {

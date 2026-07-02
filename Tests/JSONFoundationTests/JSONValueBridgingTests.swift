@@ -90,10 +90,10 @@ struct JSONValueBridgingTests {
         #expect(value["name"] == .string("demo"))
         #expect(value["items"]?[1] == .string("two"))
         #expect(value["absent"] == nil)
-        #expect(value["items"]?[3] == nil)  // out of bounds
-        #expect(value["items"]?[-1] == nil)  // negative index
-        #expect(JSONValue.string("x")["key"] == nil)  // not an object
-        #expect(JSONValue.string("x")[0] == nil)  // not an array
+        #expect(value["items"]?[3] == nil) // out of bounds
+        #expect(value["items"]?[-1] == nil) // negative index
+        #expect(JSONValue.string("x")["key"] == nil) // not an object
+        #expect(JSONValue.string("x")[0] == nil) // not an array
     }
 
     // MARK: - Typed accessors

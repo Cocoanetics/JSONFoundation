@@ -9,7 +9,7 @@ import Foundation
 
 /// Coding keys for `JSONSchema` encoding and decoding, shared across the
 /// per-file extensions that implement `Codable`.
-internal enum JSONSchemaCodingKeys: String, CodingKey {
+enum JSONSchemaCodingKeys: String, CodingKey {
     /// The type of the schema (string, number, boolean, array, or object)
     case type
     /// The properties of an object schema
@@ -260,5 +260,4 @@ extension JSONSchema: Codable {
         }
         return nil
     }
-
 }

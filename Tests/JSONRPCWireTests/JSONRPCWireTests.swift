@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 import JSONRPCWire
+import Testing
 
 private func body(_ string: String) -> Data { Data(string.utf8) }
 private func text(_ data: Data) -> String? { String(data: data, encoding: .utf8) }

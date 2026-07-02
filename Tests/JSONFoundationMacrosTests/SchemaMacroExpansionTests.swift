@@ -14,10 +14,10 @@
 // platforms this file compiles to nothing.
 #if canImport(SwiftSyntaxMacrosTestSupport)
 
-import XCTest
+@testable import JSONFoundationMacros
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
-@testable import JSONFoundationMacros
+import XCTest
 
 final class SchemaMacroExpansionTests: XCTestCase {
     private let macros: [String: Macro.Type] = ["Schema": SchemaMacro.self]

@@ -1,9 +1,9 @@
 #if os(macOS) || os(Linux)
 import Foundation
 import JSONFoundation
-import Testing
 import JSONRPCStdio
 import JSONRPCWire
+import Testing
 
 // `cat -u` echoes stdin to stdout verbatim, so a framed message sent out comes
 // straight back — proving the Foundation.Process transport round-trips end to end.

@@ -6,6 +6,7 @@ import FoundationNetworking
 import JSONFoundation
 import JSONRPCPeer
 import JSONRPCWire
+
 // SwiftCross backfills `URLSession.bytes(for:)` — a Darwin-only API — on the
 // FoundationNetworking platforms (Linux / Windows / Android) via a delegate-based
 // streaming shim, so this transport compiles and streams everywhere.

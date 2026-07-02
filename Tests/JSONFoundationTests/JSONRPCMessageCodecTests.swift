@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import JSONFoundation
+import Testing
 
 @Suite("JSONRPCMessage codec edge cases")
 struct JSONRPCMessageCodecTests {

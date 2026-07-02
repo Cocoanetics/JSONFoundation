@@ -9,7 +9,6 @@
 import Foundation
 
 public extension JSONRPCMessage {
-
     // MARK: - Shape
 
     /// `true` for a `request` — a method call carrying an `id`, expecting a reply.

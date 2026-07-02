@@ -205,7 +205,7 @@ public struct SchemaMacro: MemberMacro, ExtensionMacro {
     ) -> String {
         if propertyTypes.count == 1,
            let onlyType = propertyTypes.first,
-           let elementType = Self.arrayElementType(
+           let elementType = arrayElementType(
                from: onlyType.trimmingCharacters(in: .whitespacesAndNewlines)
            ) {
             return "public typealias MCPClientReturn = [\(elementType)]"
@@ -350,7 +350,7 @@ public struct SchemaMacro: MemberMacro, ExtensionMacro {
         if typeString.hasPrefix("Array<") && typeString.hasSuffix(">") {
             let start = typeString.index(typeString.startIndex, offsetBy: 6)
             let end = typeString.index(before: typeString.endIndex)
-            let trimmed = typeString[start..<end].trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = typeString[start ..< end].trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
         }
 

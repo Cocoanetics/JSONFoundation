@@ -2,17 +2,17 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
 import JSONFoundation
 import JSONRPCPeer
 @testable import JSONRPCSSE
+import Testing
 
 @Suite("SSEClientTransport")
 struct SSEClientTransportTests {
     /// Sending after close() rejects with the transport contract's error.
     @Test(.timeLimit(.minutes(1)))
     func sendAfterCloseThrowsClosed() throws {
-        let transport = SSEClientTransport(endpoint: URL(string: "http://localhost:1/rpc")!)
+        let transport = SSEClientTransport(endpoint: try #require(URL(string: "http://localhost:1/rpc")))
         transport.close()
         #expect(throws: JSONRPCPeerError.self) {
             try transport.send(.request(id: 1, method: "ping"))
@@ -27,7 +27,7 @@ struct SSEClientTransportTests {
     @Test(.timeLimit(.minutes(1)))
     func directJSONResponseIsDelivered() async throws {
         let transport = SSEClientTransport(
-            endpoint: URL(string: "https://stub.example/json")!,
+            endpoint: try #require(URL(string: "https://stub.example/json")),
             session: Self.makeStubbedSession()
         )
         defer { transport.close() }
@@ -44,7 +44,7 @@ struct SSEClientTransportTests {
     @Test(.timeLimit(.minutes(1)))
     func batchResponseDeliversAllMessages() async throws {
         let transport = SSEClientTransport(
-            endpoint: URL(string: "https://stub.example/json-batch")!,
+            endpoint: try #require(URL(string: "https://stub.example/json-batch")),
             session: Self.makeStubbedSession()
         )
         defer { transport.close() }
@@ -63,7 +63,7 @@ struct SSEClientTransportTests {
     @Test(.timeLimit(.minutes(1)))
     func sseResponseDeliversEachEvent() async throws {
         let transport = SSEClientTransport(
-            endpoint: URL(string: "https://stub.example/sse")!,
+            endpoint: try #require(URL(string: "https://stub.example/sse")),
             session: Self.makeStubbedSession()
         )
         defer { transport.close() }

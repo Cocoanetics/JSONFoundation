@@ -120,8 +120,9 @@ extension JSONSchema {
         // For other schema types, return as is since they don't have required fields
         case .string, .number, .boolean, .enum:
             return self
+
         case .oneOf(let schemas, let title, let description):
-            return .oneOf(schemas.map { $0.withoutRequired }, title: title, description: description)
+            return .oneOf(schemas.map(\.withoutRequired), title: title, description: description)
         }
     }
 }
@@ -213,10 +214,11 @@ extension JSONSchema {
         // For other schema types, return as is since they don't have required fields
         case .oneOf(let schemas, let title, let description):
             return .oneOf(
-                schemas.map { $0.addingAdditionalPropertiesRestrictionToObjects },
+                schemas.map(\.addingAdditionalPropertiesRestrictionToObjects),
                 title: title,
                 description: description
             )
+
         default:
             return self
         }

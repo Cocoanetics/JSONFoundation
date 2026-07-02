@@ -1,7 +1,7 @@
 // swift-tools-version: 6.1
-import PackageDescription
 import CompilerPluginSupport
 import Foundation
+import PackageDescription
 
 // JSONFoundation — the wire model for JSON, JSON Schema, and JSON-RPC, plus the
 // JSON-RPC *runtime* (a transport-agnostic peer and a set of stdio/SSE transports)
@@ -51,8 +51,8 @@ let package = Package(
         .library(name: "JSONRPC", targets: ["JSONRPC"])
     ],
     traits: [
-        .default(enabledTraits: []),   // base graph: only SwiftCross (via JSONRPCSSE)
-        .trait(name: "Subprocess")     // opt-in: the swift-subprocess transport
+        .default(enabledTraits: []), // base graph: only SwiftCross (via JSONRPCSSE)
+        .trait(name: "Subprocess") // opt-in: the swift-subprocess transport
     ],
     dependencies: [
         // Cross-platform `URLSession.bytes(for:)` for JSONRPCSSE (no further deps).
@@ -61,10 +61,11 @@ let package = Package(
         // active when the `Subprocess` trait is enabled.
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.5.0"),
         // Build-time only: powers the `@Schema` macro plugin (host toolchain).
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", "602.0.0-latest"..<"604.0.0")
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "602.0.0-latest" ..< "604.0.0")
     ],
     targets: [
         // MARK: Macros (build-time compiler plugin — host only)
+
         .macro(
             name: "JSONFoundationMacros",
             dependencies: [
@@ -74,33 +75,37 @@ let package = Package(
         ),
 
         // MARK: Model (pure Foundation; the `@Schema` macro is a build-time plugin)
+
         .target(name: "JSONFoundation", dependencies: ["JSONFoundationMacros"]),
 
         // MARK: JSON-RPC runtime (pure — no I/O, no external deps)
+
         .target(name: "JSONRPCPeer", dependencies: ["JSONFoundation"]),
         .target(name: "JSONRPCWire"),
 
         // MARK: SSE server registry (pure Foundation; reuses JSONRPCWire's encoder)
+
         .target(name: "JSONRPCSSEServer", dependencies: ["JSONRPCWire"]),
 
         // MARK: Transports (do I/O)
+
         .target(
-            name: "JSONRPCStdio",                       // Foundation.Process — zero-dep
+            name: "JSONRPCStdio", // Foundation.Process — zero-dep
             dependencies: ["JSONFoundation", "JSONRPCPeer", "JSONRPCWire"]
         ),
         .target(
-            name: "JSONRPCTCP",                         // POSIX sockets — zero-dep
+            name: "JSONRPCTCP", // POSIX sockets — zero-dep
             dependencies: ["JSONFoundation", "JSONRPCPeer", "JSONRPCWire"]
         ),
         .target(
-            name: "JSONRPCSSE",                         // URLSession + SwiftCross (cross-platform bytes)
+            name: "JSONRPCSSE", // URLSession + SwiftCross (cross-platform bytes)
             dependencies: [
                 "JSONFoundation", "JSONRPCPeer", "JSONRPCWire",
                 .product(name: "SwiftCross", package: "SwiftCross")
             ]
         ),
         .target(
-            name: "JSONRPCSubprocess",                  // swift-subprocess — trait-gated
+            name: "JSONRPCSubprocess", // swift-subprocess — trait-gated
             dependencies: [
                 "JSONFoundation", "JSONRPCPeer", "JSONRPCWire",
                 .product(name: "Subprocess", package: "swift-subprocess",
@@ -109,6 +114,7 @@ let package = Package(
         ),
 
         // MARK: Umbrella (re-exports for `import JSONRPC`)
+
         .target(
             name: "JSONRPC",
             dependencies: [
@@ -118,6 +124,7 @@ let package = Package(
         ),
 
         // MARK: Tests
+
         .testTarget(name: "JSONFoundationTests", dependencies: ["JSONFoundation"]),
         .testTarget(name: "JSONRPCPeerTests", dependencies: ["JSONRPCPeer", "JSONFoundation"]),
         .testTarget(name: "JSONRPCWireTests", dependencies: ["JSONRPCWire"]),

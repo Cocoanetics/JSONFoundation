@@ -1,6 +1,7 @@
 import Foundation
 
 // MARK: - JSONSchema encoding
+
 extension JSONSchema {
     fileprivate typealias CodingKeys = JSONSchemaCodingKeys
 

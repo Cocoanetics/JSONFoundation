@@ -28,7 +28,7 @@ extension JSONRPCMessage {
             let method = try container.decode(String.self, forKey: .method)
             let params = try container.decodeIfPresent(JSONValue.self, forKey: .params)
 
-            if let id = id {
+            if let id {
                 // Request with ID (expecting response)
                 self = .request(JSONRPCRequestData(jsonrpc: jsonrpc, id: id, method: method, params: params))
             } else {
@@ -41,7 +41,7 @@ extension JSONRPCMessage {
             self = .errorResponse(JSONRPCErrorResponseData(jsonrpc: jsonrpc, id: id, error: error))
         } else if container.contains(.result) {
             // This is a result response - must have ID
-            guard let id = id else {
+            guard let id else {
                 throw DecodingError.dataCorrupted(DecodingError.Context(
                     codingPath: decoder.codingPath,
                     debugDescription: "Response missing required id field"
@@ -98,7 +98,7 @@ extension JSONRPCMessage {
         }
         for byte in bytes {
             switch byte {
-            case 0x20, 0x09, 0x0A, 0x0D:   // space, tab, LF, CR — skip leading JSON whitespace
+            case 0x20, 0x09, 0x0A, 0x0D: // space, tab, LF, CR — skip leading JSON whitespace
                 continue
             case UInt8(ascii: "["):
                 return true
@@ -106,6 +106,6 @@ extension JSONRPCMessage {
                 return false
             }
         }
-        return false   // empty or whitespace-only: not a batch
+        return false // empty or whitespace-only: not a batch
     }
 }

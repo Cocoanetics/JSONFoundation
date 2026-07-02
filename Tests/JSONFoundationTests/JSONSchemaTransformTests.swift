@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import JSONFoundation
+import Testing
 
 @Suite("JSONSchema transforms")
 struct JSONSchemaTransformTests {
@@ -23,7 +23,7 @@ struct JSONSchemaTransformTests {
 
     /// Regression: both transforms used to rebuild `Object` without `title:`,
     /// erasing it at every nesting level.
-    @Test func withoutRequiredKeepsTitles() throws {
+    @Test func withoutRequiredKeepsTitles() {
         guard case .object(let outer, _) = Self.makeTitledSchema().withoutRequired else {
             Issue.record("expected an object schema")
             return
@@ -38,7 +38,7 @@ struct JSONSchemaTransformTests {
         #expect(inner.required.isEmpty)
     }
 
-    @Test func addingAdditionalPropertiesRestrictionKeepsTitles() throws {
+    @Test func addingAdditionalPropertiesRestrictionKeepsTitles() {
         let transformed = Self.makeTitledSchema().addingAdditionalPropertiesRestrictionToObjects
         guard case .object(let outer, _) = transformed else {
             Issue.record("expected an object schema")

@@ -140,7 +140,7 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
     /// Coding keys for the wire codec, shared by the `Decodable` implementation
     /// in `JSONRPCMessage+Decoding.swift` and the `Encodable` implementation in
     /// `JSONRPCMessage+Encoding.swift`.
-    internal enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey {
         case jsonrpc, id, method, params, result, error
     }
 

@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import JSONRPCSSEServer
+import Testing
 
 @Test func sseMessageDescriptionMatchesEncoder() {
     // SSEMessage delegates wire encoding to SSEEventEncoder; assert they agree.

@@ -3,9 +3,9 @@
 #if Subprocess
 import Foundation
 import JSONFoundation
-import Testing
 import JSONRPCSubprocess
 import JSONRPCWire
+import Testing
 
 @Test(.timeLimit(.minutes(1)))
 func stdioMessageTransportLoopbackThroughCat() async throws {

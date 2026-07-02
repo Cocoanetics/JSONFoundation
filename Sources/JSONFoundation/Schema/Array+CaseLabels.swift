@@ -33,7 +33,7 @@ extension CaseIterable {
     }
 }
 
-extension Array where Element == String {
+extension [String] {
     /**
      Initialize an array of case labels if the given parameter (a type) conforms to CaseIterable.
 

@@ -11,7 +11,7 @@
 
 @_exported import JSONFoundation
 @_exported import JSONRPCPeer
-@_exported import JSONRPCWire
+@_exported import JSONRPCSSE
 @_exported import JSONRPCStdio
 @_exported import JSONRPCTCP
-@_exported import JSONRPCSSE
+@_exported import JSONRPCWire

@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import JSONFoundation
+import Testing
 
 // Deliberately not Codable: a `let` with an initial value cannot be decoded.
 /// A person's contact information
@@ -52,7 +52,7 @@ struct ConnectionDefaults: Sendable {
     /// String literal containing dots
     var host: String = "127.0.0.1"
     /// Qualified member access
-    var limit: Int = Int.max
+    var limit: Int = .max
 }
 
 @Suite("@Schema macro (moved into JSONFoundation)")
@@ -73,9 +73,9 @@ struct SchemaMacroTests {
 
     @Test func marksRequiredVersusOptionalAndDefaulted() {
         let byName = Dictionary(uniqueKeysWithValues: ContactInfo.schemaMetadata.parameters.map { ($0.name, $0) })
-        #expect(byName["name"]?.isRequired == true)    // non-optional, no default
-        #expect(byName["phone"]?.isRequired == false)  // optional
-        #expect(byName["age"]?.isRequired == false)    // has a default value
+        #expect(byName["name"]?.isRequired == true) // non-optional, no default
+        #expect(byName["phone"]?.isRequired == false) // optional
+        #expect(byName["age"]?.isRequired == false) // has a default value
     }
 
     @Test func producesAJSONSchema() {
@@ -107,13 +107,13 @@ struct SchemaMacroTests {
         let byName = Dictionary(
             uniqueKeysWithValues: ConnectionDefaults.schemaMetadata.parameters.map { ($0.name, $0) }
         )
-        #expect(byName["transport"]?.defaultValue as? TransportKind == .stdio)  // implicit member
-        #expect(byName["verbose"]?.defaultValue as? Bool == true)               // bool literal
-        #expect(byName["port"]?.defaultValue as? Int == 8080)                   // integer literal
-        #expect(byName["timeout"]?.defaultValue as? Double == 1.5)              // float literal
-        #expect(byName["tags"]?.defaultValue as? [String] == ["a", "b"])        // array literal
-        #expect(byName["host"]?.defaultValue as? String == "127.0.0.1")         // string with dots
-        #expect(byName["limit"]?.defaultValue as? Int == Int.max)               // explicit member
+        #expect(byName["transport"]?.defaultValue as? TransportKind == .stdio) // implicit member
+        #expect(byName["verbose"]?.defaultValue as? Bool == true) // bool literal
+        #expect(byName["port"]?.defaultValue as? Int == 8080) // integer literal
+        #expect(byName["timeout"]?.defaultValue as? Double == 1.5) // float literal
+        #expect(byName["tags"]?.defaultValue as? [String] == ["a", "b"]) // array literal
+        #expect(byName["host"]?.defaultValue as? String == "127.0.0.1") // string with dots
+        #expect(byName["limit"]?.defaultValue as? Int == Int.max) // explicit member
 
         // An explicit `= nil` stays a nil default (and the property optional).
         #expect(byName["proxy"] != nil)
