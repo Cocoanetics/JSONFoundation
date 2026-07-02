@@ -1,6 +1,7 @@
 // swift-tools-version: 6.1
 import PackageDescription
 import CompilerPluginSupport
+import Foundation
 
 // JSONFoundation — the wire model for JSON, JSON Schema, and JSON-RPC, plus the
 // JSON-RPC *runtime* (a transport-agnostic peer and a set of stdio/SSE transports)
@@ -118,11 +119,30 @@ let package = Package(
 
         // MARK: Tests
         .testTarget(name: "JSONFoundationTests", dependencies: ["JSONFoundation"]),
-        // Platform-conditioned to the hosts that run it natively: cross-compiling
-        // a test target that links a `.macro` target is broken in SwiftPM
-        // (swiftlang/swift-package-manager#8094), which would sink the Android CI
-        // leg. Elsewhere the deps drop out and the file compiles to nothing via
-        // its `#if canImport(SwiftSyntaxMacrosTestSupport)` guard.
+        .testTarget(name: "JSONRPCPeerTests", dependencies: ["JSONRPCPeer", "JSONFoundation"]),
+        .testTarget(name: "JSONRPCWireTests", dependencies: ["JSONRPCWire"]),
+        .testTarget(name: "JSONRPCSSEServerTests", dependencies: ["JSONRPCSSEServer", "JSONRPCWire"]),
+        .testTarget(name: "JSONRPCStdioTests", dependencies: ["JSONRPCStdio", "JSONRPCWire", "JSONFoundation"]),
+        .testTarget(name: "JSONRPCTCPTests", dependencies: ["JSONRPCTCP", "JSONRPCPeer", "JSONRPCWire", "JSONFoundation"]),
+        .testTarget(name: "JSONRPCSSETests", dependencies: ["JSONRPCSSE", "JSONRPCPeer", "JSONRPCWire", "JSONFoundation"]),
+        .testTarget(name: "JSONRPCSubprocessTests", dependencies: ["JSONRPCSubprocess", "JSONRPCWire", "JSONFoundation"])
+    ] + macroTestTargets
+)
+
+// Cross-compiling a test target that links a `.macro` target is broken in
+// SwiftPM (swiftlang/swift-package-manager#8094): the build dies on a missing
+// index-store unit for the test module, even when its sources compile to
+// nothing. The destination platform is not visible while this manifest is
+// evaluated (on the host), so cross-compiling CI legs (Android) set this
+// variable to keep the host-only macro test target out of their graph. The
+// platform-conditioned dependencies additionally keep swift-syntax's test
+// support out of native builds that never run these tests (e.g. Windows,
+// where the file compiles to nothing via its canImport guard).
+var macroTestTargets: [Target] {
+    guard ProcessInfo.processInfo.environment["JSONFOUNDATION_SKIP_MACRO_TESTS"] == nil else {
+        return []
+    }
+    return [
         .testTarget(
             name: "JSONFoundationMacrosTests",
             dependencies: [
@@ -131,13 +151,6 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax",
                          condition: .when(platforms: [.macOS, .linux]))
             ]
-        ),
-        .testTarget(name: "JSONRPCPeerTests", dependencies: ["JSONRPCPeer", "JSONFoundation"]),
-        .testTarget(name: "JSONRPCWireTests", dependencies: ["JSONRPCWire"]),
-        .testTarget(name: "JSONRPCSSEServerTests", dependencies: ["JSONRPCSSEServer", "JSONRPCWire"]),
-        .testTarget(name: "JSONRPCStdioTests", dependencies: ["JSONRPCStdio", "JSONRPCWire", "JSONFoundation"]),
-        .testTarget(name: "JSONRPCTCPTests", dependencies: ["JSONRPCTCP", "JSONRPCPeer", "JSONRPCWire", "JSONFoundation"]),
-        .testTarget(name: "JSONRPCSSETests", dependencies: ["JSONRPCSSE", "JSONRPCPeer", "JSONRPCWire", "JSONFoundation"]),
-        .testTarget(name: "JSONRPCSubprocessTests", dependencies: ["JSONRPCSubprocess", "JSONRPCWire", "JSONFoundation"])
+        )
     ]
-)
+}

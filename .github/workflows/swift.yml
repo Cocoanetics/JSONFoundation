@@ -85,6 +85,10 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Cross-compiling the macro test target trips swiftlang/swift-package-manager#8094
+    # (missing index-store unit); this drops that host-only target from the graph.
+    env:
+      JSONFOUNDATION_SKIP_MACRO_TESTS: "1"
     steps:
       - uses: actions/checkout@v6
       - name: Build & test (Android emulator)
