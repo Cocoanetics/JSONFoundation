@@ -9,6 +9,9 @@
  Enum representing all possible JSON-RPC message types.
  This unifies all JSON-RPC message handling and makes it easier to work with collections
  of mixed message types while still being able to distinguish them in processing loops.
+
+ Spec-mandated behavior follows the JSON-RPC 2.0 specification:
+ https://www.jsonrpc.org/specification
  */
 public enum JSONRPCMessage: Codable, Sendable, Hashable {
     case request(JSONRPCRequestData)
@@ -224,10 +227,6 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         case jsonrpc, id, method, params, result, error
     }
 
-    private enum NestedKeys: String, CodingKey {
-        case protocolVersion
-    }
-
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
@@ -291,7 +290,9 @@ public enum JSONRPCMessage: Codable, Sendable, Hashable {
         case .response(let data):
             try container.encode(data.jsonrpc, forKey: .jsonrpc)
             try container.encode(data.id, forKey: .id)
-            try container.encodeIfPresent(data.result, forKey: .result)
+            // `result` is required on success per the spec; a nil result is
+            // normalized to JSON null so the message stays valid and round-trips.
+            try container.encode(data.result ?? .null, forKey: .result)
 
         case .errorResponse(let data):
             try container.encode(data.jsonrpc, forKey: .jsonrpc)

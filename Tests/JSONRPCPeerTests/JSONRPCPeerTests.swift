@@ -208,6 +208,29 @@ private final class CapturingSink: JSONRPCMessageSink, @unchecked Sendable {
     }
 }
 
+@Test(.timeLimit(.minutes(1)))
+func sendRequestHonorsTaskCancellation() async throws {
+    let transport = SpyTransport()
+    let peer = JSONRPCPeer(transport: transport)
+    await peer.start()
+
+    // onSend fires synchronously inside sendRequest, after the continuation is
+    // parked — so cancelling after this signal can't race the registration.
+    let parked = OnceBox<JSONRPCMessage>()
+    transport.onSend = { message, _ in parked.fire(message) }
+
+    let task = Task {
+        try await peer.sendRequest(method: "never-answered", params: nil)
+    }
+    _ = await parked.value
+    task.cancel()
+
+    await #expect(throws: CancellationError.self) {
+        _ = try await task.value
+    }
+    await peer.close()
+}
+
 @Test func sendRequestAfterStreamEndRejects() async throws {
     // After the inbound stream ends, a *new* request must reject rather than park a
     // continuation no reader will ever resolve.

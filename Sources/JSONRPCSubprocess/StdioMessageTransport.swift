@@ -141,7 +141,7 @@ public final class StdioMessageTransport<Framing: MessageFraming>: JSONRPCMessag
                 for try await buffer in execution.standardOutput {
                     let bytes = buffer.withUnsafeBytes { Array($0) }
                     for body in decoder.push(Data(bytes)) {
-                        if let message = try? JSONRPCMessage.decodeMessages(from: body).first {
+                        for message in (try? JSONRPCMessage.decodeMessages(from: body)) ?? [] {
                             inbound.yield(message)
                         }
                     }
@@ -183,7 +183,7 @@ public final class StdioMessageTransport<Framing: MessageFraming>: JSONRPCMessag
                 let chunk = handle.availableData
                 if chunk.isEmpty { break } // EOF: the host closed our stdin
                 for body in decoder.push(chunk) {
-                    if let message = try? JSONRPCMessage.decodeMessages(from: body).first {
+                    for message in (try? JSONRPCMessage.decodeMessages(from: body)) ?? [] {
                         inbound.yield(message)
                     }
                 }

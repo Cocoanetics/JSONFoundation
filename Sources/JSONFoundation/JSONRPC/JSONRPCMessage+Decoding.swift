@@ -19,11 +19,14 @@ extension JSONRPCMessage {
     public static func decodeMessages(from data: Data) throws -> [JSONRPCMessage] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        if let batch = try? decoder.decode([JSONRPCMessage].self, from: data) {
-            return batch
-        } else {
-            let single = try decoder.decode(JSONRPCMessage.self, from: data)
-            return [single]
+        do {
+            return try decoder.decode([JSONRPCMessage].self, from: data)
+        } catch {
+            // A payload that is a batch but failed per-element must surface its
+            // real error — falling through to the single-object decode would
+            // replace it with a misleading type-mismatch about the array shape.
+            if isBatchPayload(data) { throw error }
+            return [try decoder.decode(JSONRPCMessage.self, from: data)]
         }
     }
 
@@ -34,7 +37,13 @@ extension JSONRPCMessage {
     /// ``decodeMessages(from:)``, so inspecting the raw payload is the only
     /// reliable way to recover the wire shape afterwards.
     public static func isBatchPayload(_ data: Data) -> Bool {
-        for byte in data {
+        var bytes = data[...]
+        // JSONDecoder tolerates a UTF-8 BOM during encoding detection; skip it
+        // so the shape sniff agrees with what the decoder would accept.
+        if bytes.starts(with: [0xEF, 0xBB, 0xBF]) {
+            bytes = bytes.dropFirst(3)
+        }
+        for byte in bytes {
             switch byte {
             case 0x20, 0x09, 0x0A, 0x0D:   // space, tab, LF, CR — skip leading JSON whitespace
                 continue

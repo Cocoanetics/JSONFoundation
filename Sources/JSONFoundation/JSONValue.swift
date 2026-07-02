@@ -17,7 +17,13 @@ public enum JSONValueError: Error, LocalizedError {
     }
 }
 
-public enum MCPJSONCoding {
+/// The package-wide default JSON coding policy: ISO-8601 dates (with time zone),
+/// base64 `Data`, and non-conforming floats as `"Infinity"` / `"-Infinity"` /
+/// `"NaN"` strings. These factories supply the default encoder/decoder arguments
+/// throughout `JSONValue`'s bridging API.
+public enum JSONCoding {
+    /// An encoder with the package's default strategies, for turning `Encodable`
+    /// values into `JSONValue` trees.
     public static func makeValueEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601WithTimeZone
@@ -30,12 +36,15 @@ public enum MCPJSONCoding {
         return encoder
     }
 
+    /// `makeValueEncoder()` plus `.sortedKeys`, so wire output is deterministic
+    /// (byte-identical for equal values).
     public static func makeWireEncoder() -> JSONEncoder {
         let encoder = makeValueEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return encoder
     }
 
+    /// The decoding counterpart of ``makeValueEncoder()``.
     public static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601WithTimeZone
@@ -48,6 +57,9 @@ public enum MCPJSONCoding {
         return decoder
     }
 }
+
+@available(*, deprecated, renamed: "JSONCoding")
+public typealias MCPJSONCoding = JSONCoding
 
 @frozen public indirect enum JSONValue: Codable, Sendable, Hashable {
     case null
@@ -86,12 +98,12 @@ public enum MCPJSONCoding {
         }
     }
 
-    public init<T: Encodable>(encoding value: T, using encoder: JSONEncoder = MCPJSONCoding.makeValueEncoder()) throws {
+    public init<T: Encodable>(encoding value: T, using encoder: JSONEncoder = JSONCoding.makeValueEncoder()) throws {
         let data = try encoder.encode(value)
-        self = try MCPJSONCoding.makeDecoder().decode(JSONValue.self, from: data)
+        self = try JSONCoding.makeDecoder().decode(JSONValue.self, from: data)
     }
 
-    public init(encoding value: any Encodable, using encoder: JSONEncoder = MCPJSONCoding.makeValueEncoder()) throws {
+    public init(encoding value: any Encodable, using encoder: JSONEncoder = JSONCoding.makeValueEncoder()) throws {
         if let data = value as? Data {
             self = .string(data.base64EncodedString())
             return
@@ -103,7 +115,7 @@ public enum MCPJSONCoding {
         }
 
         let data = try encoder.encode(_JSONValueOpaqueEncodable(value))
-        self = try MCPJSONCoding.makeDecoder().decode(JSONValue.self, from: data)
+        self = try JSONCoding.makeDecoder().decode(JSONValue.self, from: data)
     }
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -222,6 +234,17 @@ public enum MCPJSONCoding {
         }
     }
 
+    public var uintValue: UInt? {
+        switch self {
+        case .unsignedInteger(let value):
+            return value
+        case .integer(let value):
+            return UInt(exactly: value)
+        default:
+            return nil
+        }
+    }
+
     public var doubleValue: Double? {
         switch self {
         case .double(let value):
@@ -276,9 +299,9 @@ public enum MCPJSONCoding {
 
     public func decoded<T: Decodable>(
         _ type: T.Type = T.self,
-        using decoder: JSONDecoder = MCPJSONCoding.makeDecoder()
+        using decoder: JSONDecoder = JSONCoding.makeDecoder()
     ) throws -> T {
-        let data = try MCPJSONCoding.makeWireEncoder().encode(self)
+        let data = try JSONCoding.makeWireEncoder().encode(self)
         return try decoder.decode(T.self, from: data)
     }
 
@@ -287,9 +310,9 @@ public enum MCPJSONCoding {
     /// type is only known at runtime (e.g. `any Decodable.Type`).
     public func decodeDynamically(
         _ type: any Decodable.Type,
-        using decoder: JSONDecoder = MCPJSONCoding.makeDecoder()
+        using decoder: JSONDecoder = JSONCoding.makeDecoder()
     ) throws -> any Decodable {
-        let data = try MCPJSONCoding.makeWireEncoder().encode(self)
+        let data = try JSONCoding.makeWireEncoder().encode(self)
         return try decoder.decode(type, from: data)
     }
 }
@@ -356,7 +379,7 @@ extension JSONValue: ExpressibleByDictionaryLiteral {
 }
 
 public extension [String: JSONValue] {
-    init<T: Encodable>(encoding value: T, using encoder: JSONEncoder = MCPJSONCoding.makeValueEncoder()) throws {
+    init<T: Encodable>(encoding value: T, using encoder: JSONEncoder = JSONCoding.makeValueEncoder()) throws {
         let jsonValue = try JSONValue(encoding: value, using: encoder)
         guard case .object(let object) = jsonValue else {
             throw JSONValueError.expectedObject
@@ -364,7 +387,7 @@ public extension [String: JSONValue] {
         self = object
     }
 
-    init(encoding value: any Encodable, using encoder: JSONEncoder = MCPJSONCoding.makeValueEncoder()) throws {
+    init(encoding value: any Encodable, using encoder: JSONEncoder = JSONCoding.makeValueEncoder()) throws {
         let jsonValue = try JSONValue(encoding: value, using: encoder)
         guard case .object(let object) = jsonValue else {
             throw JSONValueError.expectedObject
@@ -374,7 +397,7 @@ public extension [String: JSONValue] {
 
     func decoded<T: Decodable>(
         _ type: T.Type = T.self,
-        using decoder: JSONDecoder = MCPJSONCoding.makeDecoder()
+        using decoder: JSONDecoder = JSONCoding.makeDecoder()
     ) throws -> T {
         try JSONValue.object(self).decoded(type, using: decoder)
     }
@@ -383,7 +406,7 @@ public extension [String: JSONValue] {
 public extension [JSONValue] {
     func decoded<T: Decodable>(
         _ type: T.Type = T.self,
-        using decoder: JSONDecoder = MCPJSONCoding.makeDecoder()
+        using decoder: JSONDecoder = JSONCoding.makeDecoder()
     ) throws -> T {
         try JSONValue.array(self).decoded(type, using: decoder)
     }

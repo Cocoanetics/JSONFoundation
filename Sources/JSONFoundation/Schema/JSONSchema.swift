@@ -103,6 +103,7 @@ extension JSONSchema {
             // For object schemas, create a new object with empty required array
             return .object(Object(properties: object.properties.mapValues { $0.withoutRequired },
                                   required: [],
+                                  title: object.title,
                                   description: object.description,
                                   additionalProperties: object.additionalProperties),
                            defaultValue: defaultValue)
@@ -127,6 +128,9 @@ extension JSONSchema {
 
 // Extension to apply default values when available
 extension JSONSchema {
+    /// Returns a copy with `defaultValue` filled in, unless the schema already carries one.
+    ///
+    /// `oneOf` schemas have no default-value slot and are returned unchanged.
     public func applyingDefault(_ defaultValue: JSONValue?) -> JSONSchema {
         guard let defaultValue else { return self }
         switch self {
@@ -179,7 +183,7 @@ extension JSONSchema {
 // Extension to add additionalProperties:false to all objects, for use with structured results
 // swiftlint:disable identifier_name
 extension JSONSchema {
-    /// Returns a new schema with all required fields removed
+    /// Returns a new schema with `additionalProperties: false` set on every object, recursively
     public var addingAdditionalPropertiesRestrictionToObjects: JSONSchema {
         switch self {
         case .object(let object, let defaultValue):
@@ -190,6 +194,7 @@ extension JSONSchema {
                 Object(
                     properties: updatedProperties,
                     required: object.required,
+                    title: object.title,
                     description: object.description,
                     additionalProperties: false
                 ),

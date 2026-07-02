@@ -119,7 +119,7 @@ public final class SSEClientTransport: JSONRPCMessageTransport, @unchecked Senda
     private static func yield(
         _ body: Data, to inbound: AsyncThrowingStream<JSONRPCMessage, any Error>.Continuation
     ) {
-        if let message = try? JSONRPCMessage.decodeMessages(from: body).first {
+        for message in (try? JSONRPCMessage.decodeMessages(from: body)) ?? [] {
             inbound.yield(message)
         }
     }

@@ -198,6 +198,12 @@ public struct SchemaMacro: MemberMacro, ExtensionMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
+        // Non-structs already got the onlyStructs error from the member role;
+        // adding the conformance anyway would only pile on follow-up errors.
+        guard declaration.is(StructDeclSyntax.self) else {
+            return []
+        }
+
         // Check if the declaration already conforms to SchemaRepresentable
         let inheritedTypes = declaration.inheritanceClause?.inheritedTypes ?? []
         let alreadyConformsToSchemaRepresentable = inheritedTypes.contains { type in
@@ -328,9 +334,10 @@ public struct SchemaMacro: MemberMacro, ExtensionMacro {
             if let structDecl = current.as(StructDeclSyntax.self) {
                 // Look for CodingKeys enum in the struct members
                 for member in structDecl.memberBlock.members {
+                    // Any access level counts — Codable places no requirement on
+                    // the CodingKeys enum's visibility.
                     guard let enumDecl = member.decl.as(EnumDeclSyntax.self),
-                          enumDecl.name.text == "CodingKeys",
-                          enumDecl.modifiers.contains(where: { $0.name.text == "private" }) else {
+                          enumDecl.name.text == "CodingKeys" else {
                         continue
                     }
 

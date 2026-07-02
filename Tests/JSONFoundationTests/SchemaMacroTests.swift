@@ -15,6 +15,17 @@ struct ContactInfo: Codable, Sendable {
     let age: Int = 0
 }
 
+/// A recipient with wire keys renamed via a (non-private) CodingKeys enum
+@Schema
+struct Recipient: Codable, Sendable {
+    /// Die Straße des Empfängers 🏠
+    let fullName: String
+
+    enum CodingKeys: String, CodingKey {
+        case fullName = "full_name"
+    }
+}
+
 @Suite("@Schema macro (moved into JSONFoundation)")
 struct SchemaMacroTests {
     @Test func synthesizesSchemaRepresentableConformance() {
@@ -43,5 +54,20 @@ struct SchemaMacroTests {
         let schema = ContactInfo.schemaMetadata.schema
         let encoded = try? JSONEncoder().encode(schema)
         #expect(encoded != nil)
+    }
+
+    /// Regression: the macro used to honor CodingKeys only when the enum was
+    /// declared `private`; an internal one was silently ignored, so schema and
+    /// wire format disagreed.
+    @Test func honorsNonPrivateCodingKeys() {
+        let names = Recipient.schemaMetadata.parameters.map(\.name)
+        #expect(names == ["full_name"])
+    }
+
+    /// Regression: doc comments used to be stripped to printable ASCII, mangling
+    /// umlauts, accents, and emoji in the generated descriptions.
+    @Test func preservesNonASCIIDocumentation() {
+        let description = Recipient.schemaMetadata.parameters.first?.description
+        #expect(description == "Die Straße des Empfängers 🏠")
     }
 }
