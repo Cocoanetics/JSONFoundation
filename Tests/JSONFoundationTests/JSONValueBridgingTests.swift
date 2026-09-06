@@ -1,5 +1,5 @@
 import Foundation
-import JSONFoundation
+@testable import JSONFoundation
 import Testing
 
 /// Covers `JSONValue`'s Foundation-bridging paths — `init(jsonObject:)`,
@@ -206,5 +206,101 @@ struct JSONValueBridgingTests {
         #expect(throws: DecodingError.self) {
             _ = try decoder.decode(Stamped.self, from: Data(#"{"date": "yesterday"}"#.utf8))
         }
+    }
+
+    private struct Stamps: Codable {
+        var dates: [Date]
+    }
+
+    /// What the strategy must produce for `date`, built the expensive way.
+    private func reference(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = TimeZone.current
+        formatter.formatOptions = [.withInternetDateTime, .withTimeZone]
+        return formatter.string(from: date)
+    }
+
+    @Test func iso8601WithTimeZoneEncodesThousandsOfDatesLikeAFreshFormatter() throws {
+        // The strategies reuse one formatter per thread; every date must still
+        // come out exactly as a formatter built for that one call would encode
+        // it, and decode back to the same instant.
+        let dates = (0..<5_000).map { Date(timeIntervalSince1970: 1_700_000_000 + Double($0) * 7_919) }
+        let (encoder, decoder) = makeDateCoders()
+        let started = Date()
+        let data = try encoder.encode(Stamps(dates: dates))
+        let decoded = try decoder.decode(Stamps.self, from: data)
+        print("iso8601WithTimeZone: \(dates.count) dates encoded+decoded in \(Int(Date().timeIntervalSince(started) * 1_000)) ms")
+
+        #expect(decoded.dates == dates)
+        let strings = try #require(JSONSerialization.jsonObject(with: data) as? [String: [String]])["dates"]
+        #expect(strings?.count == dates.count)
+        for (string, date) in zip(strings ?? [], dates) {
+            #expect(string == reference(date))
+        }
+    }
+
+    @Test func iso8601WithTimeZoneIsSafeAcrossThreads() throws {
+        // Each thread owns its formatter; concurrent encoders and decoders
+        // must never see each other's state.
+        let dates = (0..<200).map { Date(timeIntervalSince1970: 1_700_000_000 + Double($0) * 3_600) }
+        let expected = dates.map(reference)
+        let (encoder, decoder) = makeDateCoders()
+        let failures = ManagedAtomicCounter()
+
+        DispatchQueue.concurrentPerform(iterations: 16) { _ in
+            for _ in 0..<20 {
+                guard let data = try? encoder.encode(Stamps(dates: dates)),
+                      let strings = (try? JSONSerialization.jsonObject(with: data) as? [String: [String]])?["dates"],
+                      strings == expected,
+                      let decoded = try? decoder.decode(Stamps.self, from: data),
+                      decoded.dates == dates else {
+                    failures.increment()
+                    continue
+                }
+            }
+        }
+        #expect(failures.value == 0)
+    }
+
+    @Test func iso8601FormatterIsReusedPerThreadAndRebuiltWhenTheTimeZoneMoves() throws {
+        // Same zone, same thread: the same instance comes back. A different
+        // zone (the host's zone changed) gets a fresh formatter that encodes
+        // the new offset; the fractional-seconds variant is a separate instance.
+        let tokyo = try #require(TimeZone(identifier: "Asia/Tokyo"))
+        let newYork = try #require(TimeZone(identifier: "America/New_York"))
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let first = ISO8601Formatters.formatter(timeZone: tokyo)
+        let again = ISO8601Formatters.formatter(timeZone: tokyo)
+        #expect(first === again)
+        #expect(first.string(from: date) == "2023-11-15T07:13:20+09:00")
+
+        let moved = ISO8601Formatters.formatter(timeZone: newYork)
+        #expect(moved !== first)
+        #expect(moved.string(from: date) == "2023-11-14T17:13:20-05:00")
+
+        let fractional = ISO8601Formatters.formatter(
+            formatOptions: ISO8601Formatters.fractionalOptions, timeZone: newYork)
+        #expect(fractional !== moved)
+        #expect(fractional.string(from: date) == "2023-11-14T17:13:20.000-05:00")
+        #expect(ISO8601Formatters.formatter(timeZone: newYork) === moved)
+    }
+}
+
+/// A lock-protected counter for the concurrency test (no swift-atomics dependency).
+private final class ManagedAtomicCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func increment() {
+        lock.lock()
+        defer { lock.unlock() }
+        count += 1
     }
 }

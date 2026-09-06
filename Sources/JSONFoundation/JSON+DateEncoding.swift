@@ -7,19 +7,40 @@
 
 import Foundation
 
-/// Builds the ISO 8601 formatter shared by the `iso8601WithTimeZone` encoding
-/// and decoding strategies.
+/// The ISO 8601 formatters behind the `iso8601WithTimeZone` encoding and
+/// decoding strategies — one per thread and option set.
 ///
-/// A fresh instance is built per call: `ISO8601DateFormatter`'s thread safety
-/// is not guaranteed on non-Apple Foundation, and constructing lazily re-reads
-/// `TimeZone.current` in case the host's time zone changed.
-private func makeISO8601Formatter(
-    formatOptions: ISO8601DateFormatter.Options = [.withInternetDateTime, .withTimeZone]
-) -> ISO8601DateFormatter {
-    let formatter = ISO8601DateFormatter()
-    formatter.timeZone = TimeZone.current
-    formatter.formatOptions = formatOptions
-    return formatter
+/// Building an `ISO8601DateFormatter` costs on the order of a millisecond, and
+/// the strategies run once per `Date`; a document with a few thousand dates
+/// used to spend seconds constructing formatters. Each thread keeps its own
+/// instance instead: `ISO8601DateFormatter`'s thread safety is not guaranteed
+/// on non-Apple Foundation, and a formatter is only ever used synchronously
+/// by the thread that owns it, so nothing is shared. The instance is rebuilt
+/// when `TimeZone.current` no longer matches the one it was built with, so a
+/// host time-zone change still shows up in the next encoded offset.
+enum ISO8601Formatters {
+    static let defaultOptions: ISO8601DateFormatter.Options = [.withInternetDateTime, .withTimeZone]
+    static let fractionalOptions: ISO8601DateFormatter.Options = [
+        .withInternetDateTime, .withTimeZone, .withFractionalSeconds
+    ]
+
+    /// The calling thread's formatter for `formatOptions` in `timeZone`
+    /// (the host's current zone unless a test injects one).
+    static func formatter(
+        formatOptions: ISO8601DateFormatter.Options = defaultOptions,
+        timeZone: TimeZone = .current
+    ) -> ISO8601DateFormatter {
+        let key = "JSONFoundation.ISO8601DateFormatter.\(formatOptions.rawValue)"
+        let threadLocal = Thread.current.threadDictionary
+        if let cached = threadLocal[key] as? ISO8601DateFormatter, cached.timeZone == timeZone {
+            return cached
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = timeZone
+        formatter.formatOptions = formatOptions
+        threadLocal[key] = formatter
+        return formatter
+    }
 }
 
 extension JSONEncoder.DateEncodingStrategy {
@@ -30,7 +51,7 @@ extension JSONEncoder.DateEncodingStrategy {
     /// string for the same `Date` varies by machine — including in the
     /// otherwise-deterministic ``JSONCoding/makeWireEncoder()`` output.
     public static let iso8601WithTimeZone = JSONEncoder.DateEncodingStrategy.custom { date, encoder in
-        let string = makeISO8601Formatter().string(from: date)
+        let string = ISO8601Formatters.formatter().string(from: date)
         var container = encoder.singleValueContainer()
         try container.encode(string)
     }
@@ -44,13 +65,12 @@ extension JSONDecoder.DateDecodingStrategy {
     public static let iso8601WithTimeZone = JSONDecoder.DateDecodingStrategy.custom { decoder in
         let container = try decoder.singleValueContainer()
         let string = try container.decode(String.self)
-        if let date = makeISO8601Formatter().date(from: string) {
+        if let date = ISO8601Formatters.formatter().date(from: string) {
             return date
         }
         // Common producers include fractional seconds, which the default
         // options reject; retry with them before giving up.
-        let fractional: ISO8601DateFormatter.Options = [.withInternetDateTime, .withTimeZone, .withFractionalSeconds]
-        if let date = makeISO8601Formatter(formatOptions: fractional).date(from: string) {
+        if let date = ISO8601Formatters.formatter(formatOptions: ISO8601Formatters.fractionalOptions).date(from: string) {
             return date
         }
         throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO 8601 date")
