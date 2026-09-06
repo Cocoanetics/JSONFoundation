@@ -70,7 +70,8 @@ extension JSONDecoder.DateDecodingStrategy {
         }
         // Common producers include fractional seconds, which the default
         // options reject; retry with them before giving up.
-        if let date = ISO8601Formatters.formatter(formatOptions: ISO8601Formatters.fractionalOptions).date(from: string) {
+        let fractional = ISO8601Formatters.formatter(formatOptions: ISO8601Formatters.fractionalOptions)
+        if let date = fractional.date(from: string) {
             return date
         }
         throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO 8601 date")
