@@ -229,7 +229,8 @@ struct JSONValueBridgingTests {
         let started = Date()
         let data = try encoder.encode(Stamps(dates: dates))
         let decoded = try decoder.decode(Stamps.self, from: data)
-        print("iso8601WithTimeZone: \(dates.count) dates encoded+decoded in \(Int(Date().timeIntervalSince(started) * 1_000)) ms")
+        let elapsed = Int(Date().timeIntervalSince(started) * 1_000)
+        print("iso8601WithTimeZone: \(dates.count) dates encoded+decoded in \(elapsed) ms")
 
         #expect(decoded.dates == dates)
         let strings = try #require(JSONSerialization.jsonObject(with: data) as? [String: [String]])["dates"]
