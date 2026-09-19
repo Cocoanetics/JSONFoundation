@@ -184,6 +184,38 @@ extension JSONSchema {
     }
 }
 
+// Extension to normalise the set-like `required` list
+extension JSONSchema {
+    /// Returns a copy with every object's `required` list sorted, at every level.
+    ///
+    /// `required` is a set in JSON Schema but an array here, so two decodes of
+    /// the same shape can carry it in different orders and compare unequal.
+    /// Compare `a.withoutDescriptions.withSortedRequired` with the same of `b`
+    /// to ask whether two schemas describe one shape.
+    public var withSortedRequired: JSONSchema {
+        switch self {
+        case .object(let object, let defaultValue):
+            return .object(Object(properties: object.properties.mapValues { $0.withSortedRequired },
+                                  required: object.required.sorted(),
+                                  title: object.title,
+                                  description: object.description,
+                                  additionalProperties: object.additionalProperties),
+                           defaultValue: defaultValue)
+        case .array(let items, let title, let description, let defaultValue):
+            return .array(
+                items: items.withSortedRequired,
+                title: title,
+                description: description,
+                defaultValue: defaultValue
+            )
+        case .oneOf(let schemas, let title, let description):
+            return .oneOf(schemas.map(\.withSortedRequired), title: title, description: description)
+        case .string, .number, .boolean, .enum:
+            return self
+        }
+    }
+}
+
 // Extension to apply default values when available
 extension JSONSchema {
     /// Returns a copy with `defaultValue` filled in, unless the schema already carries one.

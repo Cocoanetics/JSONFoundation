@@ -44,6 +44,30 @@ struct JSONSchemaEquatableTests {
         #expect(JSONSchema.object(object).withoutDescriptions != Self.ride().withoutDescriptions)
     }
 
+    @Test func requiredOrderIsNotShape() {
+        guard case .object(let object, _) = Self.ride() else {
+            Issue.record("expected an object schema")
+            return
+        }
+        var reordered = object
+        reordered.required = ["rider_id", "id"]
+        var reference = object
+        reference.required = ["id", "rider_id"]
+        // Exact equality sees the order; the normalised comparison does not.
+        #expect(JSONSchema.object(reordered) != JSONSchema.object(reference))
+        #expect(JSONSchema.object(reordered).withSortedRequired == JSONSchema.object(reference).withSortedRequired)
+    }
+
+    @Test func withSortedRequiredReachesNestedObjects() {
+        let nested: JSONSchema = .array(items: .object(.init(
+            properties: ["b": .string(), "a": .string()], required: ["b", "a"]
+        )))
+        let expected: JSONSchema = .array(items: .object(.init(
+            properties: ["b": .string(), "a": .string()], required: ["a", "b"]
+        )))
+        #expect(nested.withSortedRequired == expected)
+    }
+
     @Test func requiredAndTitleTakePartInEquality() {
         guard case .object(let object, _) = Self.ride() else {
             Issue.record("expected an object schema")

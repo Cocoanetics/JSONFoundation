@@ -83,6 +83,10 @@ transforms produce the variant you actually want to compare or emit:
 - `withoutDescriptions` — the same shape with every `description` removed, at every
   level; titles, defaults, formats and bounds are kept. Two schemas that describe the
   same shape but document it differently are equal after this.
+- `withSortedRequired` — every `required` list sorted, recursively. It is a set in
+  JSON Schema but an array here, so two decodes of one shape can differ only in its
+  order; `a.withoutDescriptions.withSortedRequired == b.withoutDescriptions.withSortedRequired`
+  is "same shape".
 - `withoutRequired` — every `required` list emptied, recursively.
 - `addingAdditionalPropertiesRestrictionToObjects` — `additionalProperties: false` on
   every object, for structured results.
