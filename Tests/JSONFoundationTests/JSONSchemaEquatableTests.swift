@@ -44,28 +44,33 @@ struct JSONSchemaEquatableTests {
         #expect(JSONSchema.object(object).withoutDescriptions != Self.ride().withoutDescriptions)
     }
 
-    @Test func requiredOrderIsNotShape() {
+    @Test func requiredIsASetSoItsOrderIsNotShape() {
         guard case .object(let object, _) = Self.ride() else {
             Issue.record("expected an object schema")
             return
         }
-        var reordered = object
-        reordered.required = ["rider_id", "id"]
-        var reference = object
-        reference.required = ["id", "rider_id"]
-        // Exact equality sees the order; the normalised comparison does not.
-        #expect(JSONSchema.object(reordered) != JSONSchema.object(reference))
-        #expect(JSONSchema.object(reordered).withSortedRequired == JSONSchema.object(reference).withSortedRequired)
+        var oneWay = object
+        oneWay.required = ["rider_id", "id"]
+        var theOther = object
+        theOther.required = ["id", "rider_id"]
+        #expect(JSONSchema.object(oneWay) == JSONSchema.object(theOther))
+        #expect(JSONSchema.object(oneWay).hashValue == JSONSchema.object(theOther).hashValue)
     }
 
-    @Test func withSortedRequiredReachesNestedObjects() {
-        let nested: JSONSchema = .array(items: .object(.init(
-            properties: ["b": .string(), "a": .string()], required: ["b", "a"]
-        )))
-        let expected: JSONSchema = .array(items: .object(.init(
-            properties: ["b": .string(), "a": .string()], required: ["a", "b"]
-        )))
-        #expect(nested.withSortedRequired == expected)
+    @Test func requiredEncodesSortedAndDecodesAsASet() throws {
+        let schema: JSONSchema = .object(.init(
+            properties: ["b": .string(), "a": .string(), "c": .string()], required: ["c", "a", "b"]
+        ))
+        let encoded = try JSONEncoder().encode(schema)
+        let json = try #require(String(data: encoded, encoding: .utf8))
+        #expect(json.contains(#""required":["a","b","c"]"#))
+        let wire = #"{"type":"object","properties":{},"required":["b","a","a"]}"#
+        let decoded = try JSONDecoder().decode(JSONSchema.self, from: Data(wire.utf8))
+        guard case .object(let object, _) = decoded else {
+            Issue.record("expected an object schema")
+            return
+        }
+        #expect(object.required == ["a", "b"])
     }
 
     @Test func requiredAndTitleTakePartInEquality() {

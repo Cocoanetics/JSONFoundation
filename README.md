@@ -77,16 +77,15 @@ let schema: JSONSchema = .object(.init(
 ```
 
 `JSONSchema` is `Equatable` and `Hashable`, so schemas can be compared, deduplicated
-and used as dictionary keys. Equality is exact — descriptions included — and a few
-transforms produce the variant you actually want to compare or emit:
+and used as dictionary keys. An object's `required` is a `Set<String>` — it is a set in
+JSON Schema — so equality never depends on the order it was written in, and it encodes
+sorted so the same schema always serialises the same way. Equality is otherwise exact —
+descriptions included — and a few transforms produce the variant you actually want to
+compare or emit:
 
 - `withoutDescriptions` — the same shape with every `description` removed, at every
   level; titles, defaults, formats and bounds are kept. Two schemas that describe the
   same shape but document it differently are equal after this.
-- `withSortedRequired` — every `required` list sorted, recursively. It is a set in
-  JSON Schema but an array here, so two decodes of one shape can differ only in its
-  order; `a.withoutDescriptions.withSortedRequired == b.withoutDescriptions.withSortedRequired`
-  is "same shape".
 - `withoutRequired` — every `required` list emptied, recursively.
 - `addingAdditionalPropertiesRestrictionToObjects` — `additionalProperties: false` on
   every object, for structured results.

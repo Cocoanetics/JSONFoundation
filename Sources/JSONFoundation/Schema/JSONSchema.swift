@@ -17,7 +17,11 @@ public indirect enum JSONSchema: Sendable, Equatable, Hashable {
         public var properties: [String: JSONSchema]
 
         /// Which of the properties are mandatory
-        public var required: [String]
+        /// The property names that must be present. A set, as it is in JSON
+        /// Schema: order carries no meaning and duplicates are not allowed, so
+        /// two schemas with the same required names are equal however either
+        /// was written. Encodes sorted, for stable output.
+        public var required: Set<String>
 
         /// Title of the type
         public var title: String?
@@ -31,7 +35,7 @@ public indirect enum JSONSchema: Sendable, Equatable, Hashable {
         /// public initializer
         public init(
             properties: [String: JSONSchema],
-            required: [String],
+            required: Set<String> = [],
             title: String? = nil,
             description: String? = nil,
             additionalProperties: Bool? = nil
@@ -134,7 +138,8 @@ extension JSONSchema {
     /// Two schemas that describe the same shape but document it differently
     /// compare as equal after this; titles, defaults, formats and bounds are
     /// all kept. This is what code generators want when deciding whether two
-    /// occurrences of a titled schema are one type.
+    /// occurrences of a titled schema are one type. (`required` needs no such
+    /// treatment: it is a set, so its order never took part in equality.)
     public var withoutDescriptions: JSONSchema {
         switch self {
         case .string(let title, _, let format, let minLength, let maxLength, let defaultValue):
@@ -180,38 +185,6 @@ extension JSONSchema {
             )
         case .oneOf(let schemas, let title, _):
             return .oneOf(schemas.map(\.withoutDescriptions), title: title, description: nil)
-        }
-    }
-}
-
-// Extension to normalise the set-like `required` list
-extension JSONSchema {
-    /// Returns a copy with every object's `required` list sorted, at every level.
-    ///
-    /// `required` is a set in JSON Schema but an array here, so two decodes of
-    /// the same shape can carry it in different orders and compare unequal.
-    /// Compare `a.withoutDescriptions.withSortedRequired` with the same of `b`
-    /// to ask whether two schemas describe one shape.
-    public var withSortedRequired: JSONSchema {
-        switch self {
-        case .object(let object, let defaultValue):
-            return .object(Object(properties: object.properties.mapValues { $0.withSortedRequired },
-                                  required: object.required.sorted(),
-                                  title: object.title,
-                                  description: object.description,
-                                  additionalProperties: object.additionalProperties),
-                           defaultValue: defaultValue)
-        case .array(let items, let title, let description, let defaultValue):
-            return .array(
-                items: items.withSortedRequired,
-                title: title,
-                description: description,
-                defaultValue: defaultValue
-            )
-        case .oneOf(let schemas, let title, let description):
-            return .oneOf(schemas.map(\.withSortedRequired), title: title, description: description)
-        case .string, .number, .boolean, .enum:
-            return self
         }
     }
 }
