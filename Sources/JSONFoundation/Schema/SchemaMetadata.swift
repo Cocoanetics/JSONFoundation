@@ -36,14 +36,14 @@ public struct SchemaMetadata: Sendable {
     public var schema: JSONSchema {
         // Convert parameters to properties
         var properties: [String: JSONSchema] = [:]
-        var required: [String] = []
+        var required: Set<String> = []
 
         for param in parameters {
             let schema = param.schema
             properties[param.name] = schema
 
             if param.isRequired {
-                required.append(param.name)
+                required.insert(param.name)
             }
         }
 

@@ -153,7 +153,8 @@ extension JSONSchema {
         }
 
         if !object.required.isEmpty {
-            try container.encode(object.required, forKey: .required)
+            // A set has no order; sort so the same schema always encodes the same way.
+            try container.encode(object.required.sorted(), forKey: .required)
         }
 
         try container.encodeIfPresent(object.title, forKey: .title)

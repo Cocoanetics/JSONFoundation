@@ -54,4 +54,40 @@ struct JSONSchemaTransformTests {
         #expect(inner.title == "Inner")
         #expect(inner.additionalProperties == false)
     }
+
+    @Test func withoutDescriptionsStripsAtEveryLevelAndKeepsTitles() {
+        guard case .object(let outer, _) = Self.makeTitledSchema().withoutDescriptions else {
+            Issue.record("expected an object schema")
+            return
+        }
+        #expect(outer.title == "Outer")
+        #expect(outer.description == nil)
+        #expect(outer.required == ["inner"])
+        guard case .object(let inner, _)? = outer.properties["inner"] else {
+            Issue.record("expected a nested object schema")
+            return
+        }
+        #expect(inner.title == "Inner")
+        #expect(inner.description == nil)
+        #expect(inner.required == ["x"])
+    }
+
+    @Test func withoutDescriptionsReachesArraysEnumsAndUnions() {
+        let schema: JSONSchema = .oneOf(
+            [
+                .array(items: .enum(values: ["a", "b"], description: "an enum"), description: "an array"),
+                .string(description: "a string", format: "date-time", defaultValue: .string("x"))
+            ],
+            title: "Union",
+            description: "a union"
+        )
+        let expected: JSONSchema = .oneOf(
+            [
+                .array(items: .enum(values: ["a", "b"])),
+                .string(format: "date-time", defaultValue: .string("x"))
+            ],
+            title: "Union"
+        )
+        #expect(schema.withoutDescriptions == expected)
+    }
 }

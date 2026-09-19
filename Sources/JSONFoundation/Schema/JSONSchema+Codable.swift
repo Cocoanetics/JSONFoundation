@@ -228,7 +228,7 @@ extension JSONSchema: Codable {
                 properties[key.stringValue] = try propertiesContainer.decode(JSONSchema.self, forKey: key)
             }
         }
-        let required = try container.decodeIfPresent([String].self, forKey: .required) ?? []
+        let required = try container.decodeIfPresent(Set<String>.self, forKey: .required) ?? []
 
         let additionalProperties = try decodeAdditionalProperties(from: container)
         let defaultValue = try container.decodeIfPresent(JSONValue.self, forKey: .default)
