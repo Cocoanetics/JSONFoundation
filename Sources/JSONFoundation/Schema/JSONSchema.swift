@@ -8,11 +8,11 @@
 import Foundation
 
 /// A simplified representation of JSON Schema for use in the macros
-public indirect enum JSONSchema: Sendable {
+public indirect enum JSONSchema: Sendable, Equatable, Hashable {
     /**
      A structured schema type
      */
-    public struct Object: Sendable {
+    public struct Object: Sendable, Equatable, Hashable {
         /// The properties of the type
         public var properties: [String: JSONSchema]
 
@@ -123,6 +123,63 @@ extension JSONSchema {
 
         case .oneOf(let schemas, let title, let description):
             return .oneOf(schemas.map(\.withoutRequired), title: title, description: description)
+        }
+    }
+}
+
+// Extension to compare schemas by shape rather than by documentation
+extension JSONSchema {
+    /// Returns a copy with every `description` removed, at every level.
+    ///
+    /// Two schemas that describe the same shape but document it differently
+    /// compare as equal after this; titles, defaults, formats and bounds are
+    /// all kept. This is what code generators want when deciding whether two
+    /// occurrences of a titled schema are one type.
+    public var withoutDescriptions: JSONSchema {
+        switch self {
+        case .string(let title, _, let format, let minLength, let maxLength, let defaultValue):
+            return .string(
+                title: title,
+                description: nil,
+                format: format,
+                minLength: minLength,
+                maxLength: maxLength,
+                defaultValue: defaultValue
+            )
+        case .number(let title, _, let minimum, let maximum, let defaultValue):
+            return .number(
+                title: title,
+                description: nil,
+                minimum: minimum,
+                maximum: maximum,
+                defaultValue: defaultValue
+            )
+        case .boolean(let title, _, let defaultValue):
+            return .boolean(title: title, description: nil, defaultValue: defaultValue)
+        case .array(let items, let title, _, let defaultValue):
+            return .array(
+                items: items.withoutDescriptions,
+                title: title,
+                description: nil,
+                defaultValue: defaultValue
+            )
+        case .object(let object, let defaultValue):
+            return .object(Object(properties: object.properties.mapValues { $0.withoutDescriptions },
+                                  required: object.required,
+                                  title: object.title,
+                                  description: nil,
+                                  additionalProperties: object.additionalProperties),
+                           defaultValue: defaultValue)
+        case .enum(let values, let title, _, let enumNames, let defaultValue):
+            return .enum(
+                values: values,
+                title: title,
+                description: nil,
+                enumNames: enumNames,
+                defaultValue: defaultValue
+            )
+        case .oneOf(let schemas, let title, _):
+            return .oneOf(schemas.map(\.withoutDescriptions), title: title, description: nil)
         }
     }
 }

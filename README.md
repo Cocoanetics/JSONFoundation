@@ -76,6 +76,18 @@ let schema: JSONSchema = .object(.init(
 ))
 ```
 
+`JSONSchema` is `Equatable` and `Hashable`, so schemas can be compared, deduplicated
+and used as dictionary keys. Equality is exact — descriptions included — and a few
+transforms produce the variant you actually want to compare or emit:
+
+- `withoutDescriptions` — the same shape with every `description` removed, at every
+  level; titles, defaults, formats and bounds are kept. Two schemas that describe the
+  same shape but document it differently are equal after this.
+- `withoutRequired` — every `required` list emptied, recursively.
+- `addingAdditionalPropertiesRestrictionToObjects` — `additionalProperties: false` on
+  every object, for structured results.
+- `applyingDefault(_:)` — fills in a `defaultValue` unless the schema already has one.
+
 ### The `@Schema` macro
 
 Attach `@Schema` to a struct and its schema is derived at compile time, with
