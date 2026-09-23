@@ -23,8 +23,7 @@ package func startFramedReaderThread(
     framing: some MessageFraming,
     readChunk: @escaping @Sendable () -> Data,
     onBody: @escaping @Sendable (Data) -> Void,
-    onEOF: @escaping @Sendable () -> Void,
-    onFailure: @escaping @Sendable (any Error) -> Void
+    onFinish: @escaping @Sendable (any Error?) -> Void
 ) {
     let thread = Thread {
         var decoder = framing
@@ -38,11 +37,11 @@ package func startFramedReaderThread(
             } catch {
                 // A framing failure leaves no boundary to resynchronise on, so the
                 // read ends here and the caller fails its stream rather than looping.
-                onFailure(error)
+                onFinish(error)
                 return
             }
         }
-        onEOF()
+        onFinish(nil)
     }
     thread.name = name
     thread.stackSize = 4 << 20

@@ -162,8 +162,7 @@ public final class TCPClientTransport<Framing: MessageFraming>: JSONRPCMessageTr
                         continuation.yield(message)
                     }
                 },
-                onEOF: { continuation.finish() },
-                onFailure: { continuation.finish(throwing: $0) })
+                onFinish: { continuation.finish(throwing: $0) })
 
             continuation.onTermination = { [weak self] _ in
                 self?.close()

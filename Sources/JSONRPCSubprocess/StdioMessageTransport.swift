@@ -188,8 +188,7 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
                     inbound.yield(message)
                 }
             },
-            onEOF: { inbound.finish() },
-                onFailure: { inbound.finish(throwing: $0) })
+            onFinish: { inbound.finish(throwing: $0) })
 
         // Writer: a single task drains outbound to our stdout (no lock needed).
         return Task {
