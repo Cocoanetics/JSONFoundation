@@ -142,7 +142,7 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
                 var decoder = framing // value copy → fresh buffer
                 for try await buffer in execution.standardOutput {
                     let bytes = buffer.withUnsafeBytes { Array($0) }
-                    for body in decoder.push(Data(bytes)) {
+                    for body in try decoder.push(Data(bytes)) {
                         for message in (try? JSONRPCMessage.decodeMessages(from: body)) ?? [] {
                             inbound.yield(message)
                         }
@@ -188,7 +188,8 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
                     inbound.yield(message)
                 }
             },
-            onEOF: { inbound.finish() })
+            onEOF: { inbound.finish() },
+                onFailure: { inbound.finish(throwing: $0) })
 
         // Writer: a single task drains outbound to our stdout (no lock needed).
         return Task {
