@@ -142,7 +142,7 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
                 var decoder = framing // value copy → fresh buffer
                 for try await buffer in execution.standardOutput {
                     let bytes = buffer.withUnsafeBytes { Array($0) }
-                    for body in try decoder.push(Data(bytes)) {
+                    try decoder.push(Data(bytes)) { body in
                         for message in (try? JSONRPCMessage.decodeMessages(from: body)) ?? [] {
                             inbound.yield(message)
                         }

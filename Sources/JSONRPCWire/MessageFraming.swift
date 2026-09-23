@@ -14,14 +14,29 @@ import Foundation
 public protocol MessageFraming: Sendable {
     /// Wrap one message body for the wire (prepend a header / append a terminator).
     func frame(_ body: Data) -> Data
-    /// Feed newly-read bytes; return every complete message body they now yield
-    /// (header/terminator stripped), buffering any partial remainder.
+    /// Feed newly-read bytes, handing each complete message body (header/terminator
+    /// stripped) to `emit` as it is decoded, and buffering any partial remainder.
     ///
-    /// Throws ``FramingError`` when the bytes cannot yield a message — a peer sending
-    /// more than the configured limit, say. Such a stream cannot be resynchronised,
-    /// so a transport answers by finishing its inbound stream with the error rather
-    /// than reading on.
-    mutating func push(_ bytes: Data) throws -> [Data]
+    /// Throws ``FramingError`` when the bytes cannot yield further messages — a peer
+    /// sending more than the configured limit, say. Such a stream cannot be
+    /// resynchronised, so a transport answers by finishing its inbound stream with the
+    /// error rather than reading on.
+    ///
+    /// Delivery is a callback rather than a return value precisely because of that
+    /// throw: one read can carry a complete message *and* an oversized one, and the
+    /// complete message has already been emitted by the time the failure is reported.
+    mutating func push(_ bytes: Data, emit: (Data) -> Void) throws
+}
+
+extension MessageFraming {
+    /// Collects into an array instead of emitting. A failure discards whatever the same
+    /// call had already decoded, so transports should prefer the emitting form; this is
+    /// for callers that treat any framing failure as fatal.
+    public mutating func push(_ bytes: Data) throws -> [Data] {
+        var messages: [Data] = []
+        try push(bytes) { messages.append($0) }
+        return messages
+    }
 }
 
 /// Why a framing could not turn the bytes it was given into messages.
@@ -63,16 +78,21 @@ public struct ContentLengthFraming: MessageFraming {
         return out
     }
 
-    public mutating func push(_ bytes: Data) throws -> [Data] {
+    public mutating func push(_ bytes: Data, emit: (Data) -> Void) throws {
         buffer.append(bytes)
-        var messages: [Data] = []
-        while let message = try next() { messages.append(message) }
-        // Headers with no separator in sight would otherwise buffer without bound.
-        if maxBytes > 0, expectedLength == nil, buffer.count > maxBytes {
+        while let message = try next() { emit(message) }
+        // Headers with no separator in sight would otherwise buffer without bound. This
+        // is *not* `maxBytes`: that limits a message body, while a read can split
+        // anywhere — including part-way through a header longer than a small body limit.
+        if expectedLength == nil, buffer.count > Self.maxHeaderBytes {
             throw drop(pending: buffer.count)
         }
-        return messages
     }
+
+    /// How much unterminated header to tolerate. Generous next to any real header, and
+    /// independent of `maxBytes` so a small body limit never rejects a legal header that
+    /// a read happened to split.
+    private static let maxHeaderBytes = 8 * 1024
 
     private mutating func drop(pending: Int) -> FramingError {
         buffer.removeAll(keepingCapacity: false)
@@ -140,18 +160,18 @@ public struct LineFraming: MessageFraming {
         return out
     }
 
-    public mutating func push(_ bytes: Data) throws -> [Data] {
+    public mutating func push(_ bytes: Data, emit: (Data) -> Void) throws {
         buffer.append(bytes)
-        var messages: [Data] = []
         while let newline = buffer.firstIndex(of: 0x0A) {
             let line = buffer[buffer.startIndex ..< newline]
             let size = line.count
             buffer.removeSubrange(buffer.startIndex ... newline)
+            // Emitted before the check on the *next* line, so a message that arrived in
+            // the same read as an oversized one is still delivered.
             if maxBytes > 0, size > maxBytes { throw drop(pending: size) }
-            if !line.isEmpty { messages.append(Data(line)) }
+            if !line.isEmpty { emit(Data(line)) }
         }
         if maxBytes > 0, buffer.count > maxBytes { throw drop(pending: buffer.count) }
-        return messages
     }
 
     private mutating func drop(pending: Int) -> FramingError {

@@ -163,10 +163,15 @@ private func text(_ data: Data) -> String? { String(data: data, encoding: .utf8)
     }
 }
 
+/// Headers are capped on their own, generous limit — not on `maxBytes`, which governs
+/// a body — so this takes far more than a small body limit to trip.
 @Test func contentLengthRejectsHeadersThatNeverEnd() throws {
     var framing = ContentLengthFraming(maxBytes: 8)
+    // Well under the header cap: still fine, however small the body limit is.
+    #expect(try framing.push(body(String(repeating: "X-Pad: 1\r\n", count: 4))).isEmpty)
+    // Past it: a peer that never sends a separator cannot buffer without bound.
     #expect(throws: (any Error).self) {
-        try framing.push(body(String(repeating: "X-Pad: 1\r\n", count: 4)))
+        try framing.push(body(String(repeating: "X-Pad: 1\r\n", count: 1024)))
     }
 }
 
@@ -174,4 +179,42 @@ private func text(_ data: Data) -> String? { String(data: data, encoding: .utf8)
     var framing = ContentLengthFraming()
     let big = body(String(repeating: "y", count: 1 << 16))
     #expect(try framing.push(framing.frame(big)).count == 1)
+}
+
+/// A read can carry a good message and an oversized one together. The good one is
+/// already delivered when the failure is reported — losing it because of what followed
+/// it in the same buffer would be a bug in the framing, not in the peer.
+@Test func lineFramingEmitsCompletedMessagesBeforeFailing() {
+    var framing = LineFraming(maxBytes: 8)
+    var emitted: [String] = []
+    let chunk = framing.frame(body("{\"a\":1}")) + framing.frame(body(String(repeating: "x", count: 32)))
+
+    #expect(throws: FramingError.messageTooLarge(limit: 8, pending: 32)) {
+        try framing.push(chunk) { emitted.append(text($0) ?? "") }
+    }
+    #expect(emitted == ["{\"a\":1}"])
+}
+
+@Test func contentLengthEmitsCompletedMessagesBeforeFailing() {
+    var framing = ContentLengthFraming(maxBytes: 8)
+    var emitted: [String] = []
+    let chunk = framing.frame(body("{\"a\":1}")) + framing.frame(body(String(repeating: "y", count: 64)))
+
+    #expect(throws: FramingError.messageTooLarge(limit: 8, pending: 64)) {
+        try framing.push(chunk) { emitted.append(text($0) ?? "") }
+    }
+    #expect(emitted == ["{\"a\":1}"])
+}
+
+/// A transport read can split anywhere, including inside a header that is longer than a
+/// small body limit. The body limit must not be applied to the header.
+@Test func contentLengthAcceptsAHeaderSplitUnderASmallLimit() throws {
+    var framing = ContentLengthFraming(maxBytes: 16)
+    let frame = framing.frame(body("{}"))
+    let split = frame.count - 1
+
+    #expect(try framing.push(frame.prefix(split)).isEmpty)
+    let out = try framing.push(frame.suffix(from: split))
+    #expect(out.count == 1)
+    #expect(text(out[0]) == "{}")
 }
