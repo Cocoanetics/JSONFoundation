@@ -209,7 +209,7 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
                         continuation.yield(message)
                     }
                 },
-                onEOF: { continuation.finish() })
+                onFinish: { continuation.finish(throwing: $0) })
 
             continuation.onTermination = { [weak self] _ in
                 self?.close()
