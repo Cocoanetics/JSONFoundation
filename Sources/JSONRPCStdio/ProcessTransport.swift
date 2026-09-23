@@ -20,6 +20,12 @@ public struct ProcessExit: Sendable {
     }
 }
 
+/// How long ``ProcessTransport/waitForExit()`` waits for a captured stderr to reach EOF
+/// once the child has exited. EOF normally lands immediately, but it is not guaranteed to
+/// arrive at all — a grandchild that inherited stderr holds the write end open — so the
+/// wait is bounded rather than indefinite.
+private let stderrDrainGrace: DispatchTimeInterval = .milliseconds(250)
+
 /// Errors specific to launching the `Foundation.Process` transport.
 public enum ProcessTransportError: Error, LocalizedError {
     case launchFailed(String)
@@ -57,6 +63,10 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
     /// `waitForExit()` waits for both, and a caller can read the final diagnostic
     /// straight after it returns.
     private var awaitingStderrEOF = false
+    /// The read end of a captured stderr pipe, kept so ``close()`` can cancel its
+    /// readability source: a handler left installed outlives the transport, and on Linux
+    /// keeps the whole process from exiting.
+    private var stderrReadHandle: FileHandle?
 
     /// The child's process identifier (pid), valid once launched.
     public var processIdentifier: Int32 { process.processIdentifier }
@@ -93,10 +103,19 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
             self.exitResult = result
             // Bytes can still be queued in a captured stderr pipe: hold the waiters
             // until its EOF arrives so the tail they read is the child's last word.
-            let waiters = self.awaitingStderrEOF ? [] : self.exitWaiters
-            if !self.awaitingStderrEOF { self.exitWaiters = [] }
+            let awaitingDrain = self.awaitingStderrEOF
+            let waiters = awaitingDrain ? [] : self.exitWaiters
+            if !awaitingDrain { self.exitWaiters = [] }
             self.stateLock.unlock()
             for waiter in waiters { waiter.resume(returning: result) }
+            guard awaitingDrain else { return }
+            // Wait briefly for the tail to complete, then release regardless. A tail
+            // missing its last bytes is a far better failure than a caller that never
+            // wakes — which is exactly what an indefinite wait produced on Linux, where
+            // a child that writes once and exits never delivered the empty read.
+            DispatchQueue.global().asyncAfter(deadline: .now() + stderrDrainGrace) { [weak self] in
+                self?.finishStderrDrain()
+            }
         }
 
         do {
@@ -122,6 +141,7 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
             process.standardError = pipe
             let tail = stderrTail
             awaitingStderrEOF = true
+            stderrReadHandle = pipe.fileHandleForReading
             pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
                 let chunk = handle.availableData
                 guard chunk.isEmpty else {
@@ -207,6 +227,14 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
         stateLock.unlock()
 
         try? stdinPipe.fileHandleForWriting.close()
+        // Leaving a readability handler installed keeps its dispatch source — and on
+        // Linux the whole process — alive after the transport is done with.
+        if let handle = stderrReadHandle {
+            handle.readabilityHandler = nil
+            try? handle.close()
+            stderrReadHandle = nil
+        }
+        finishStderrDrain()
         if process.isRunning {
             process.terminate()
         }
