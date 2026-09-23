@@ -40,4 +40,39 @@ func processTransportChildReceivesCustomEnvironment() async throws {
     #expect(received?.method == "hello-env")
     transport.close()
 }
+
+// MARK: - Captured stderr
+
+/// The `Foundation.Process` transport keeps the same bounded tail as the subprocess
+/// one: a child that dies has usually explained itself on stderr.
+@Test(.timeLimit(.minutes(1)))
+func processTransportCapturesTheStderrTail() async throws {
+    let transport = try ProcessTransport(
+        launch: ProcessLaunch(
+            executable: "/bin/sh", arguments: ["-c", "echo 'boom: no such model' >&2; exit 2"],
+            stderr: .capture(maxBytes: 4096)),
+        framing: LineFraming())
+    var inbound = transport.makeInboundStream().makeAsyncIterator()
+    _ = try? await inbound.next()
+    for _ in 0 ..< 50 where transport.capturedStandardError().isEmpty {
+        try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    #expect(transport.capturedStandardError().contains("no such model"))
+    transport.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
+func processTransportCapturesNothingByDefault() async throws {
+    let transport = try ProcessTransport(
+        launch: ProcessLaunch(executable: "/bin/sh", arguments: ["-c", "echo noise >&2; cat -u"]),
+        framing: LineFraming())
+    try transport.send(.request(id: 1, method: "ping", params: nil))
+    var inbound = transport.makeInboundStream().makeAsyncIterator()
+    _ = try await inbound.next()
+
+    #expect(transport.capturedStandardError().isEmpty)
+    transport.close()
+}
+
 #endif

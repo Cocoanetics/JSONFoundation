@@ -46,6 +46,7 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
     private let process = Process()
     private let stdinPipe = Pipe()
     private let stdoutPipe = Pipe()
+    private let stderrTail: StderrTail?
     private let writeLock = NSLock()
     private let stateLock = NSLock()
     private var isClosed = false
@@ -55,13 +56,38 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
     /// The child's process identifier (pid), valid once launched.
     public var processIdentifier: Int32 { process.processIdentifier }
 
+    /// The tail of the child's stderr kept under ``StderrDisposition/capture(maxBytes:)``,
+    /// as text. Empty for any other disposition, and for a child that wrote nothing.
+    public func capturedStandardError() -> String {
+        stderrTail?.text ?? ""
+    }
+
     public init(launch: ProcessLaunch, framing: Framing) throws {
         self.framing = framing
+        if case .capture(let maxBytes) = launch.stderr {
+            self.stderrTail = StderrTail(maxBytes: maxBytes)
+        } else {
+            self.stderrTail = nil
+        }
         process.executableURL = Self.resolveExecutable(launch.executable)
         process.arguments = launch.arguments
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        process.standardError = launch.inheritStderr ? FileHandle.standardError : nil
+        switch launch.stderr {
+        case .inherit:
+            process.standardError = FileHandle.standardError
+        case .discard:
+            process.standardError = nil
+        case .capture:
+            // Read continuously rather than at exit: an unread pipe fills up and stalls
+            // the child. `stderrTail` keeps only the last bytes of what goes past.
+            let pipe = Pipe()
+            process.standardError = pipe
+            let tail = stderrTail
+            pipe.fileHandleForReading.readabilityHandler = { handle in
+                tail?.append(handle.availableData)
+            }
+        }
         if let env = launch.environment {
             process.environment = env
         }
