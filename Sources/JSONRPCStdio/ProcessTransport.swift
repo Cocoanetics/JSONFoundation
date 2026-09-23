@@ -52,6 +52,11 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
     private var isClosed = false
     private var exitResult: ProcessExit?
     private var exitWaiters: [CheckedContinuation<ProcessExit, Never>] = []
+    /// Set while a captured stderr is still being drained. The child can exit with bytes
+    /// left queued in the pipe, so exit alone does not mean the tail is complete —
+    /// `waitForExit()` waits for both, and a caller can read the final diagnostic
+    /// straight after it returns.
+    private var awaitingStderrEOF = false
 
     /// The child's process identifier (pid), valid once launched.
     public var processIdentifier: Int32 { process.processIdentifier }
@@ -73,21 +78,7 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
         process.arguments = launch.arguments
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        switch launch.stderr {
-        case .inherit:
-            process.standardError = FileHandle.standardError
-        case .discard:
-            process.standardError = nil
-        case .capture:
-            // Read continuously rather than at exit: an unread pipe fills up and stalls
-            // the child. `stderrTail` keeps only the last bytes of what goes past.
-            let pipe = Pipe()
-            process.standardError = pipe
-            let tail = stderrTail
-            pipe.fileHandleForReading.readabilityHandler = { handle in
-                tail?.append(handle.availableData)
-            }
-        }
+        attachStandardError(launch.stderr, to: process)
         if let env = launch.environment {
             process.environment = env
         }
@@ -100,8 +91,10 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
             let result = ProcessExit(code: proc.terminationStatus, reason: proc.terminationReason)
             self.stateLock.lock()
             self.exitResult = result
-            let waiters = self.exitWaiters
-            self.exitWaiters = []
+            // Bytes can still be queued in a captured stderr pipe: hold the waiters
+            // until its EOF arrives so the tail they read is the child's last word.
+            let waiters = self.awaitingStderrEOF ? [] : self.exitWaiters
+            if !self.awaitingStderrEOF { self.exitWaiters = [] }
             self.stateLock.unlock()
             for waiter in waiters { waiter.resume(returning: result) }
         }
@@ -113,11 +106,56 @@ public final class ProcessTransport<Framing: MessageFraming>: JSONRPCMessageTran
         }
     }
 
+    /// Point the child's stderr at whatever the disposition asks for.
+    ///
+    /// Under `.capture` the pipe is read continuously rather than at exit: one nobody
+    /// reads fills up and stalls the child. Only the tail is kept, and EOF on it is what
+    /// tells ``waitForExit()`` the tail is final.
+    private func attachStandardError(_ disposition: StderrDisposition, to process: Process) {
+        switch disposition {
+        case .inherit:
+            process.standardError = FileHandle.standardError
+        case .discard:
+            process.standardError = nil
+        case .capture:
+            let pipe = Pipe()
+            process.standardError = pipe
+            let tail = stderrTail
+            awaitingStderrEOF = true
+            pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+                let chunk = handle.availableData
+                guard chunk.isEmpty else {
+                    tail?.append(chunk)
+                    return
+                }
+                handle.readabilityHandler = nil
+                self?.finishStderrDrain()
+            }
+        }
+    }
+
+    /// Called on stderr EOF: the tail is complete, so an exit that already happened can
+    /// now be reported.
+    private func finishStderrDrain() {
+        stateLock.lock()
+        awaitingStderrEOF = false
+        let result = exitResult
+        let waiters = result == nil ? [] : exitWaiters
+        if result != nil { exitWaiters = [] }
+        stateLock.unlock()
+        if let result { for waiter in waiters { waiter.resume(returning: result) } }
+    }
+
     /// Suspends until the child exits, returning its termination status.
+    ///
+    /// Under ``StderrDisposition/capture(maxBytes:)`` this also waits for the stderr
+    /// pipe to reach EOF, so ``capturedStandardError()`` read straight afterwards
+    /// includes whatever the child said last — which is usually the part that explains
+    /// the exit.
     public func waitForExit() async -> ProcessExit {
         await withCheckedContinuation { continuation in
             stateLock.lock()
-            if let result = exitResult {
+            if let result = exitResult, !awaitingStderrEOF {
                 stateLock.unlock()
                 continuation.resume(returning: result)
             } else {
