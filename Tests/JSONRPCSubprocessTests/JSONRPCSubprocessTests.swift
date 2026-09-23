@@ -39,7 +39,6 @@ func childProcessReceivesCustomEnvironment() async throws {
     #expect(received?.method == "hello-env")
     transport.close()
 }
-#endif
 
 // MARK: - Captured stderr
 
@@ -120,3 +119,4 @@ func aChattyChildIsNotStalledByTheLimit() async throws {
     #expect(received?.method == "survived")
     transport.close()
 }
+#endif
