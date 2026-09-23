@@ -40,4 +40,61 @@ func processTransportChildReceivesCustomEnvironment() async throws {
     #expect(received?.method == "hello-env")
     transport.close()
 }
+
+// MARK: - Captured stderr
+
+/// The `Foundation.Process` transport keeps the same bounded tail as the subprocess
+/// one: a child that dies has usually explained itself on stderr.
+/// `waitForExit()` then read — no polling. A child can exit with stderr still queued,
+/// so the wait covers the drain as well; otherwise the tail read here could miss the
+/// very line that explains the exit.
+@Test(.timeLimit(.minutes(1)))
+func processTransportCapturesTheStderrTail() async throws {
+    let transport = try ProcessTransport(
+        launch: ProcessLaunch(
+            executable: "/bin/sh", arguments: ["-c", "echo 'boom: no such model' >&2; exit 2"],
+            stderr: .capture(maxBytes: 4096)),
+        framing: LineFraming())
+
+    let exit = await transport.waitForExit()
+    #expect(exit.code == 2)
+    #expect(transport.capturedStandardError().contains("no such model"))
+    transport.close()
+}
+
+/// A child that writes a backlog and exits immediately: the final line is the one worth
+/// having, and it must survive the exit.
+///
+/// This pins the contract rather than reproducing the race. `terminationHandler` and the
+/// readability drain have no specified ordering, but on macOS the drain wins here — the
+/// test passes without the coordination too, even at ~800 KB of backlog. It is kept
+/// because the guarantee is what callers rely on, not because it reproduces the failure.
+@Test(.timeLimit(.minutes(1)))
+func theFinalStderrLineSurvivesAnImmediateExit() async throws {
+    let script = "for i in $(seq 1 2000); do echo 'chatter chatter chatter chatter' >&2; done;"
+        + " echo 'FINAL: the reason' >&2; exit 7"
+    let transport = try ProcessTransport(
+        launch: ProcessLaunch(
+            executable: "/bin/sh", arguments: ["-c", script], stderr: .capture(maxBytes: 512)),
+        framing: LineFraming())
+
+    let exit = await transport.waitForExit()
+    #expect(exit.code == 7)
+    #expect(transport.capturedStandardError().contains("FINAL: the reason"))
+    transport.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
+func processTransportCapturesNothingByDefault() async throws {
+    let transport = try ProcessTransport(
+        launch: ProcessLaunch(executable: "/bin/sh", arguments: ["-c", "echo noise >&2; cat -u"]),
+        framing: LineFraming())
+    try transport.send(.request(id: 1, method: "ping", params: nil))
+    var inbound = transport.makeInboundStream().makeAsyncIterator()
+    _ = try await inbound.next()
+
+    #expect(transport.capturedStandardError().isEmpty)
+    transport.close()
+}
+
 #endif

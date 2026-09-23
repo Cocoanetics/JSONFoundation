@@ -37,6 +37,7 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
     private let outbound: AsyncStream<JSONRPCMessage>.Continuation
     private let inbound: AsyncThrowingStream<JSONRPCMessage, any Error>
     private let runTask: Task<Void, Never>
+    private let stderrTail: StderrTail?
 
     public init(endpoint: StdioEndpoint, framing: Framing) {
         let (outboundStream, outboundContinuation) = AsyncStream<JSONRPCMessage>.makeStream()
@@ -46,13 +47,30 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
 
         switch endpoint {
         case .childProcess(let launch):
+            let tail: StderrTail?
+            if case .capture(let maxBytes) = launch.stderr {
+                tail = StderrTail(maxBytes: maxBytes)
+            } else {
+                tail = nil
+            }
+            self.stderrTail = tail
             self.runTask = Self.runChild(
-                launch: launch, framing: framing,
+                launch: launch, framing: framing, stderrTail: tail,
                 outbound: outboundStream, inbound: inboundContinuation)
         case .currentProcess:
+            self.stderrTail = nil
             self.runTask = Self.runCurrentProcess(
                 framing: framing, outbound: outboundStream, inbound: inboundContinuation)
         }
+    }
+
+    /// The tail of the child's stderr kept under ``StderrDisposition/capture(maxBytes:)``,
+    /// as text. Empty for any other disposition, and for a child that wrote nothing.
+    ///
+    /// Read it after a failure: whatever the child said on its way out is usually what
+    /// explains the exit.
+    public func capturedStandardError() -> String {
+        stderrTail?.text ?? ""
     }
 
     public func send(_ message: JSONRPCMessage) throws {
@@ -74,6 +92,7 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
     private static func runChild(
         launch: ProcessLaunch,
         framing: Framing,
+        stderrTail: StderrTail?,
         outbound: AsyncStream<JSONRPCMessage>,
         inbound: AsyncThrowingStream<JSONRPCMessage, any Error>.Continuation
     ) -> Task<Void, Never> {
@@ -82,7 +101,6 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
             : .name(launch.executable)
         let arguments = Arguments(launch.arguments)
         let workingDirectory = launch.workingDirectory.map { FilePath($0) }
-        let inheritStderr = launch.inheritStderr
         // Honor a caller-supplied environment as a full replacement — matching the
         // `Foundation.Process` transport's `process.environment = launch.environment`
         // (e.g. an ACP/MCP client injecting auth vars into the agent it spawns). `nil`
@@ -100,7 +118,8 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
                 // The server's stderr (its logs) either passes through to ours or is
                 // discarded — distinct output types, so the `run` call is branched;
                 // the I/O pump is shared.
-                if inheritStderr {
+                switch launch.stderr {
+                case .inherit:
                     _ = try await run(
                         executable, arguments: arguments, environment: environment,
                         workingDirectory: workingDirectory,
@@ -108,13 +127,23 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
                     ) { execution in
                         try await pump(execution, framing: framing, outbound: outbound, inbound: inbound)
                     }
-                } else {
+                case .discard:
                     _ = try await run(
                         executable, arguments: arguments, environment: environment,
                         workingDirectory: workingDirectory,
                         input: .inputWriter, output: .sequence, error: .discarded
                     ) { execution in
                         try await pump(execution, framing: framing, outbound: outbound, inbound: inbound)
+                    }
+                case .capture:
+                    _ = try await run(
+                        executable, arguments: arguments, environment: environment,
+                        workingDirectory: workingDirectory,
+                        input: .inputWriter, output: .sequence, error: .sequence
+                    ) { execution in
+                        try await pumpCapturingStderr(
+                            execution, framing: framing, tail: stderrTail,
+                            outbound: outbound, inbound: inbound)
                     }
                 }
                 inbound.finish()
@@ -125,6 +154,31 @@ public final class StdioTransport<Framing: MessageFraming>: JSONRPCMessageTransp
                 // stream so pending requests reject with this error.
                 inbound.finish(throwing: error)
             }
+        }
+    }
+
+    /// ``pump`` plus a stderr drain, for ``StderrDisposition/capture(maxBytes:)``.
+    ///
+    /// The drain runs *alongside* the message pump rather than after it: a stderr pipe
+    /// nobody reads fills up and stalls — or kills — the child. Everything is read;
+    /// only the tail is kept.
+    private static func pumpCapturingStderr(
+        _ execution: Execution<CustomWriteInput, SequenceOutput, SequenceOutput>,
+        framing: Framing,
+        tail: StderrTail?,
+        outbound: AsyncStream<JSONRPCMessage>,
+        inbound: AsyncThrowingStream<JSONRPCMessage, any Error>.Continuation
+    ) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                for try await buffer in execution.standardError {
+                    tail?.append(Data(buffer.withUnsafeBytes { Array($0) }))
+                }
+            }
+            group.addTask {
+                try await pump(execution, framing: framing, outbound: outbound, inbound: inbound)
+            }
+            try await group.waitForAll()
         }
     }
 
