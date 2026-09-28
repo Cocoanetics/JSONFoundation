@@ -154,6 +154,32 @@ func dispatchesInboundRequestsAndRepliesWithHandlerResult() async {
     await peer.close()
 }
 
+/// A handler installed with `identifiedRequest:` is given each request's id, so two requests
+/// alike in method and params are told apart: each is answered with what its own id gave.
+@Test(.timeLimit(.minutes(1)))
+func givesAnIdentifiedRequestHandlerEachRequestsID() async {
+    let transport = SpyTransport()
+    let peer = JSONRPCPeer(transport: transport)
+    await peer.setHandlers(
+        identifiedRequest: { id, method, _ in
+            switch id {
+            case .integer(let value): return .success(.string("\(method)#\(value)"))
+            case .string(let value): return .success(.string("\(method)#\(value)"))
+            }
+        },
+        notification: nil)
+    await peer.start()
+
+    let params: JSONValue = .object(["path": .string("/tmp/a.txt")])
+    let first = await injectAndAwaitReply(transport, .request(id: 1, method: "fs/read", params: params))
+    let second = await injectAndAwaitReply(transport, .request(id: "two", method: "fs/read", params: params))
+    #expect(first.id == 1)
+    #expect(first.result?.stringValue == "fs/read#1")
+    #expect(second.id == "two")
+    #expect(second.result?.stringValue == "fs/read#two")
+    await peer.close()
+}
+
 @Test(.timeLimit(.minutes(1)))
 func acknowledgesInboundRequestsWithNullWhenNoHandler() async {
     let transport = SpyTransport()
