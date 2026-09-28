@@ -24,6 +24,11 @@ public actor JSONRPCPeer {
     /// Handles an inbound (peer-originated) request; returns the result or an error.
     public typealias RequestHandler =
         @Sendable (_ method: String, _ params: JSONValue?) async -> Result<JSONValue, JSONRPCError>
+    /// Handles an inbound request given its `id` as well, for a handler that must tell one
+    /// request from another with the same method and params, or tie a request to others by
+    /// its id. See ``setHandlers(identifiedRequest:notification:)``.
+    public typealias IdentifiedRequestHandler =
+        @Sendable (_ id: JSONRPCID, _ method: String, _ params: JSONValue?) async -> Result<JSONValue, JSONRPCError>
     /// Handles an inbound notification (no reply).
     ///
     /// Notification handlers are awaited inline on the inbound path to preserve
@@ -44,7 +49,7 @@ public actor JSONRPCPeer {
     private let ownedTransport: JSONRPCMessageTransport?
     private var nextID = 0
     private var pending: [Int: CheckedContinuation<JSONValue, Error>] = [:]
-    private var requestHandler: RequestHandler?
+    private var requestHandler: IdentifiedRequestHandler?
     private var notificationHandler: NotificationHandler?
     private var wireLog: (@Sendable (WireDirection, JSONRPCMessage) -> Void)?
     private var readTask: Task<Void, Never>?
@@ -67,7 +72,19 @@ public actor JSONRPCPeer {
     /// request handler, inbound requests are acknowledged with a null success so a
     /// peer that required a reply isn't left waiting.
     public func setHandlers(request: RequestHandler?, notification: NotificationHandler?) {
-        self.requestHandler = request
+        if let request {
+            self.requestHandler = { _, method, params in await request(method, params) }
+        } else {
+            self.requestHandler = nil
+        }
+        self.notificationHandler = notification
+    }
+
+    /// Install handlers as ``setHandlers(request:notification:)`` does, with a request handler
+    /// that is given each request's `id` too: the id of the message it answers, which the
+    /// wire log (``setWireLog(_:)``) showed as the request was read.
+    public func setHandlers(identifiedRequest: IdentifiedRequestHandler?, notification: NotificationHandler?) {
+        self.requestHandler = identifiedRequest
         self.notificationHandler = notification
     }
 
@@ -206,7 +223,7 @@ public actor JSONRPCPeer {
         Task { [weak self] in
             let outcome: Result<JSONValue, JSONRPCError>
             if let handler {
-                outcome = await handler(method, params)
+                outcome = await handler(id, method, params)
             } else {
                 outcome = .success(.null)
             }
