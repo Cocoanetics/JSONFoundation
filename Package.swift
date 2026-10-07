@@ -58,10 +58,13 @@ let package = Package(
         // Cross-platform `URLSession.bytes(for:)` for JSONRPCSSE (no further deps).
         .package(url: "https://github.com/Cocoanetics/SwiftCross.git", from: "1.2.0"),
         // Always resolved, but its product dependency (and thus its code) is only
-        // active when the `Subprocess` trait is enabled.
-        .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.5.0"),
+        // active when the `Subprocess` trait is enabled. JSONRPCSubprocess builds
+        // and passes its tests unchanged against 0.5 and 1.0, so both majors are
+        // allowed and a client that still pins 0.x keeps resolving.
+        .package(url: "https://github.com/swiftlang/swift-subprocess.git", "0.5.0" ..< "2.0.0"),
         // Build-time only: powers the `@Schema` macro plugin (host toolchain).
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", "602.0.0-latest" ..< "604.0.0")
+        // 604 is the Swift 6.4 release.
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "602.0.0-latest" ..< "605.0.0")
     ],
     targets: [
         // MARK: Macros (build-time compiler plugin — host only)
