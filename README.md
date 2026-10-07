@@ -229,6 +229,14 @@ swift-subprocess transport, depend on `JSONRPCSubprocess` and enable the trait:
          traits: ["Subprocess"])
 ```
 
+The trait works with swift-subprocess 0.5 and 1.0. On Apple platforms 1.0 needs
+Xcode 26.2 (Swift 6.2.3) or later; with Xcode 26.0 or 26.1, keep swift-subprocess
+below 1.0 in your own package:
+
+```swift
+.package(url: "https://github.com/swiftlang/swift-subprocess.git", "0.5.0" ..< "1.0.0")
+```
+
 ## License
 
 BSD 2-Clause — see [LICENSE](LICENSE).
