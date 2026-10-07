@@ -60,7 +60,9 @@ let package = Package(
         // Always resolved, but its product dependency (and thus its code) is only
         // active when the `Subprocess` trait is enabled. JSONRPCSubprocess builds
         // and passes its tests unchanged against 0.5 and 1.0, so both majors are
-        // allowed and a client that still pins 0.x keeps resolving.
+        // allowed and a client that still pins 0.x keeps resolving. On Apple
+        // platforms 1.0 needs Xcode 26.2 (Swift 6.2.3) or later: it reads
+        // Span.bytes, which Xcode 26.0 and 26.1 mark macOS 26-only.
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", "0.5.0" ..< "2.0.0"),
         // Build-time only: powers the `@Schema` macro plugin (host toolchain).
         // 604 is the Swift 6.4 release.

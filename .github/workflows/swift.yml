@@ -35,10 +35,17 @@ jobs:
         run: swift test -v --skip-build
       # The default trait set compiles JSONRPCSubprocess (and its tests) to an
       # empty module, so a separate leg builds and tests with the trait enabled.
+      # That leg needs Xcode 26.2: swift-subprocess 1.0 reads Span.bytes, which
+      # Swift 6.2.3 back-deploys and Xcode 26.0 and 26.1 mark macOS 26-only. Its
+      # own scratch path keeps the two toolchains' build products apart.
+      - name: Select Xcode 26.2
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.2"
       - name: Build (macOS, Subprocess trait)
-        run: swift build --build-tests -v --traits Subprocess
+        run: swift build --build-tests -v --traits Subprocess --scratch-path .build/subprocess
       - name: Test (macOS, Subprocess trait)
-        run: swift test -v --skip-build --traits Subprocess
+        run: swift test -v --skip-build --traits Subprocess --scratch-path .build/subprocess
 
   build-ios:
     # macos-26 for the same runner-pool reason as build-macos.
